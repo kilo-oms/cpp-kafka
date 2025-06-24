@@ -1,0 +1,80 @@
+# Compiled Object files
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+*.elf
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# CMake build folders
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+
+# Code::Blocks
+*.depend
+*.layout
+
+# Qt Creator
+*.pro.user
+*.qbs.user
+*.moc
+*.obj
+*.rcc
+*.qmlc
+*.jsc
+
+# KDevelop
+.kdev4/
+
+# Eclipse
+.project
+.cproject
+.settings/
+
+# CLion
+.idea/
+cmake-build-*/
+
+# Visual Studio Code
+.vscode/
+.history/
+*.code-workspace
+
+# Generated files
+*.log
+
+# Other backup or temp files
+*~
+*.swp
+*.bak
+*.tmp
+
+# Test, bin, or build directories
+/build/
+/debug/
+/dist/
+/release/
+/out/
+/deps/

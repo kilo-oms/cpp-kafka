@@ -1,0 +1,58 @@
+namespace md;
+
+// --- ENUMS ---
+enum Kind : byte { Add, Modify, Remove, Trade }
+enum Side : byte { Buy, Sell }
+
+// --- DELTA EVENT (was BookDeltaEvent in C++) ---
+table FBBookDeltaEvent {
+  kind: Kind;
+  order_id: ulong;
+  price: ulong;
+  qty: uint;
+  side: Side;
+  seq: ulong;
+}
+
+// --- ORDER for a price level (Order in C++) ---
+table OrderMsgOrder {
+  id: ulong;
+  qty: uint;
+  side: Side;
+}
+
+// --- PRICE LEVEL (OrderList in C++) ---
+table OrderMsgLevel {
+  price: ulong;
+  orders: [OrderMsgOrder];
+}
+
+// --- DELTA BATCH (Batch of BookDeltaEvent for streaming) ---
+table DeltaBatch {
+  symbol: string;               // e.g. "AAPL"
+  seq_start: ulong;             // first delta in batch
+  seq_end: ulong;               // last delta in batch
+  events: [FBBookDeltaEvent];   // array of deltas
+}
+
+// --- FULL BOOK SNAPSHOT ---
+table OrderBookSnapshot {
+  symbol: string;
+  seq: ulong;          // book's cdc_seq
+  buy_side: [OrderMsgLevel];   // array of levels (high to low or low to high per your convention)
+  sell_side: [OrderMsgLevel];
+  recent_trade_price: ulong;
+  recent_trade_qty: uint;
+}
+
+// --- (Optional) Union for generic message passing ---
+union BookMsg { DeltaBatch, OrderBookSnapshot }
+
+// --- (Optional) Root envelope for type tagging in queue ---
+table Envelope {
+  msg: BookMsg;
+}
+
+// --- Default root: For pure delta streaming: DeltaBatch
+// For mixed messages, set root_type Envelope and pass either type
+root_type Envelope;

@@ -1,0 +1,20 @@
+global:
+    log_level: info
+    log_path: /tmp
+kafka_cluster:
+  bootstrap_servers: "localhost:29092"
+  compression: "lz4"
+  acks: "1"
+  queue_buffering_max_messages: 1000000
+  batch_num_messages: 10000
+  linger_ms: 5
+  topics:
+    - DEFAULT
+kafka_consumer:
+  bootstrap_servers: "localhost:29092"
+  group_id: "my-hft-consumer-group"
+  session_timeout_ms: 6000
+  auto_offset_reset: "earliest"
+  enable_auto_commit: true
+  topics:
+    - DEFAULT
