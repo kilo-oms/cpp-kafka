@@ -6,6 +6,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt -o Acquire::AllowInsecureRepositories=true  update && apt install -y --no-install-recommends \
     build-essential \
     make \
+    cmake \
     g++ \
     libyaml-cpp-dev \
     librdkafka-dev \
@@ -46,6 +47,7 @@ RUN apt -o Acquire::AllowInsecureRepositories=true update && apt install -y --no
     libyaml-cpp-dev \
     librdkafka-dev \
     ca-certificates \
+    cmake \
     git \
     && rm -rf /var/lib/apt/lists/*
 
