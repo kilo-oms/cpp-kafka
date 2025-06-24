@@ -9,7 +9,6 @@ RUN apt -o Acquire::AllowInsecureRepositories=true  update && apt install -y --n
     g++ \
     libyaml-cpp-dev \
     librdkafka-dev \
-    flatbuffers-dev \
     ca-certificates \
     curl \
     && rm -rf /var/lib/apt/lists/* \
@@ -21,6 +20,10 @@ RUN apt -o Acquire::AllowInsecureRepositories=true  update && apt install -y --n
 RUN mkdir -p /usr/local/include/nlohmann \
     && curl -sSL https://raw.githubusercontent.com/nlohmann/json/v3.11.3/single_include/nlohmann/json.hpp \
     -o /usr/local/include/nlohmann/json.hpp
+RUN git clone https://github.com/google/flatbuffers.git && \
+    cd flatbuffers/ && \
+    cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release && \
+    make
 
 # Làm việc trong thư mục ứng dụng
 WORKDIR /app
@@ -41,8 +44,11 @@ RUN apt -o Acquire::AllowInsecureRepositories=true update && apt install -y --no
     libyaml-cpp-dev \
     librdkafka-dev \
     ca-certificates \
-    flatbuffers-dev \
     && rm -rf /var/lib/apt/lists/*
+RUN git clone https://github.com/google/flatbuffers.git && \
+    cd flatbuffers/ && \
+    cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release && \
+    make
 
 # Thiết lập thư mục làm việc
 WORKDIR /app
