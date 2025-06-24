@@ -1,0 +1,13 @@
+services:
+ cboe_market_depth:
+  image: market_depth:latest
+  container_name: cboe_market_depth
+  volumes:
+    - ./config:/config
+  working_dir: /app
+  environment:
+    CONFIG_PATH: "/config/config.yaml"
+  networks:
+    - cboe_feed_handler_network
+  command: [ "/bin/market_depth_processor", "-c", "/config/config.yml"]
+

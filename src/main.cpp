@@ -232,7 +232,7 @@ int main(int argc, char *argv[]) {
     print_banner();
 
     // Parse command line arguments
-    std::string config_path = "config/config.yaml";
+    std::string config_path = "/config/config.yaml";
     std::string log_level_str = "info";
     std::string log_folder = "/tmp";
     uint32_t max_runtime_s = 0;
