@@ -63,7 +63,7 @@ void KafkaConsumer::parse_config(const std::string& config_path) {
     SPDLOG_INFO("KafkaConsumer loading config file: {}", config_path);
     YAML::Node config = YAML::LoadFile(config_path);
 
-    auto kafka = config["kafka_cluster"];
+    auto kafka = config["kafka_consumer"];
     if (!kafka)
         throw std::runtime_error("KafkaConsumer config: missing 'kafka_cluster' node");
 
