@@ -95,6 +95,7 @@ void KafkaConsumer::subscribe(const std::vector<std::string>& topics) {
 }
 
 rd_kafka_message_t* KafkaConsumer::consume(int timeout_ms) {
+    SPDLOG_INFO("KafkaConsumer subscribed to {} servers", bootstrap_servers_);
     std::shared_lock lock(consumer_mutex_);
     if (!consumer_)
         return nullptr;
