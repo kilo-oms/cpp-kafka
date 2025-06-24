@@ -22,7 +22,7 @@
 #include <map>
 #include <unordered_map>
 
-namespace md {
+namespace market_depth {
 
 /**
  * @brief Order side enumeration
@@ -46,25 +46,16 @@ enum class CDCEventType : uint8_t {
  * @brief Price level in the order book
  */
 struct PriceLevel {
-    uint64_t price;           // Price in scaled integer format
-    uint64_t quantity;        // Total quantity at this level
-    uint32_t num_orders;      // Number of orders at this level
-    std::vector<std::string> exchanges; // Exchanges contributing to this level
+    uint64_t price;
+    uint64_t quantity;
+    uint32_t num_orders;
+    std::vector<std::string> exchanges;
 
-    PriceLevel() : price(0), quantity(0), num_orders(0) {}
+    PriceLevel();
+    PriceLevel(uint64_t p, uint64_t qty, uint32_t orders = 1);
 
-    PriceLevel(uint64_t p, uint64_t qty, uint32_t orders = 1)
-        : price(p), quantity(qty), num_orders(orders) {}
-
-    bool operator==(const PriceLevel& other) const {
-        return price == other.price &&
-               quantity == other.quantity &&
-               num_orders == other.num_orders;
-    }
-
-    bool operator!=(const PriceLevel& other) const {
-        return !(*this == other);
-    }
+    bool operator==(const PriceLevel& other) const;
+    bool operator!=(const PriceLevel& other) const;
 };
 
 /**
@@ -78,75 +69,40 @@ struct CDCEvent {
     uint64_t sequence;
     uint64_t timestamp_us;
 
-    CDCEvent() : side(OrderSide::Buy), event_type(CDCEventType::LevelAdded),
-                 sequence(0), timestamp_us(0) {}
+    CDCEvent();
 };
 
 /**
  * @brief Market depth configuration
  */
 struct DepthConfig {
-    std::vector<uint32_t> depth_levels = {5, 10, 25, 50};
-    bool enable_cdc = true;
-    bool enable_snapshots = true;
-    uint32_t max_price_levels = 100; // Maximum levels to track per side
+    std::vector<uint32_t> depth_levels;
+    bool enable_cdc;
+    bool enable_snapshots;
+    uint32_t max_price_levels;
+
+    DepthConfig();
 };
 
 /**
- * @brief Order book snapshot for a single symbol
+ * @brief Internal order book snapshot
  */
-struct OrderBookSnapshot {
+struct InternalOrderBookSnapshot {
     std::string symbol;
     uint64_t sequence;
     uint64_t timestamp_us;
 
-    // Buy side levels (sorted by price descending - highest first)
     std::map<uint64_t, PriceLevel, std::greater<uint64_t>> bid_levels;
-
-    // Sell side levels (sorted by price ascending - lowest first)
     std::map<uint64_t, PriceLevel> ask_levels;
 
-    // Recent trade info
     uint64_t last_trade_price;
     uint64_t last_trade_quantity;
 
-    OrderBookSnapshot() : sequence(0), timestamp_us(0),
-                         last_trade_price(0), last_trade_quantity(0) {}
+    InternalOrderBookSnapshot();
 
-    /**
-     * @brief Get top N bid levels
-     */
-    std::vector<PriceLevel> get_top_bids(uint32_t depth) const {
-        std::vector<PriceLevel> result;
-        result.reserve(depth);
-
-        auto it = bid_levels.begin();
-        for (uint32_t i = 0; i < depth && it != bid_levels.end(); ++i, ++it) {
-            result.push_back(it->second);
-        }
-        return result;
-    }
-
-    /**
-     * @brief Get top N ask levels
-     */
-    std::vector<PriceLevel> get_top_asks(uint32_t depth) const {
-        std::vector<PriceLevel> result;
-        result.reserve(depth);
-
-        auto it = ask_levels.begin();
-        for (uint32_t i = 0; i < depth && it != ask_levels.end(); ++i, ++it) {
-            result.push_back(it->second);
-        }
-        return result;
-    }
-
-    /**
-     * @brief Check if order book has sufficient depth
-     */
-    bool has_sufficient_depth(uint32_t min_levels = 1) const {
-        return bid_levels.size() >= min_levels && ask_levels.size() >= min_levels;
-    }
+    std::vector<PriceLevel> get_top_bids(uint32_t depth) const;
+    std::vector<PriceLevel> get_top_asks(uint32_t depth) const;
+    bool has_sufficient_depth(uint32_t min_levels = 1) const;
 };
 
 /**
