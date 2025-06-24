@@ -1,11 +1,11 @@
-# Market Depth Processor Configuration
-# Equix Technologies Pty Ltd - Production Configuration
+# Simplified Market Depth Processor Configuration
+# Equix Technologies Pty Ltd - Direct Snapshot Processing
 
 # Global application settings
 global:
   log_level: info                    # trace, debug, info, warn, error, critical, off
   log_path: ./app/logs               # Log file directory
-  application_name: "market_depth_processor"
+  application_name: "simplified_market_depth_processor"
   version: "1.0.0"
 
 # Kafka cluster configuration for both producer and consumer
@@ -17,17 +17,13 @@ kafka_cluster:
   batch_num_messages: 10000
   linger_ms: 5
   topics:
-    - ORDERBOOK
-    - market_depth_snapshot_5
-    - market_depth_snapshot_10
-    - market_depth_snapshot_25
-    - market_depth_snapshot_50
-    - market_depth_cdc
+    - ORDERBOOK                    # Input topic
+    # Output topics are dynamic: market_depth.[SYMBOL_NAME]
 
-# Kafka consumer specific settings
+# Kafka consumer specific settings - 8 partitions consumption
 kafka_consumer:
   bootstrap_servers: "localhost:29092"
-  group_id: "market-depth-processor-group"
+  group_id: "simplified-market-depth-processor-group"
   session_timeout_ms: 6000
   auto_offset_reset: "earliest"     # earliest, latest, none
   enable_auto_commit: true
@@ -38,24 +34,21 @@ kafka_consumer:
   topics:
     - ORDERBOOK
 
-# Market Depth Processor configuration
+# Simplified Market Depth Processor configuration
 processor:
   input_topic: "ORDERBOOK"
   poll_timeout_ms: 100
-  max_threads: 4
+  num_partitions: 8                # Consume from 8 partitions
   flush_interval_ms: 1000          # How often to flush Kafka producer
   stats_interval_s: 30             # Statistics reporting interval
-  max_messages_per_batch: 1000
-  message_queue_size: 10000
-  enable_back_pressure: true
-  use_symbol_threading: true       # Process different symbols in parallel
+  enable_direct_processing: true   # Process snapshots directly without order book state
 
-# Order book depth configuration
+# Depth levels configuration - simplified
 depth_config:
   levels: [5, 10, 25, 50]         # Depth levels to publish
-  enable_cdc: false                 # Enable Change Data Capture events
-  enable_snapshots: false           # Enable snapshot publishing
-  max_price_levels: 100           # Maximum price levels to track per side
+  enable_cdc: false               # CDC disabled in simplified version
+  enable_snapshots: true         # Only snapshots are published
+  max_price_levels: 100           # Maximum price levels to process per side
 
 # JSON output formatting configuration
 json_config:
@@ -63,16 +56,16 @@ json_config:
   quantity_decimals: 2            # Decimal places for quantity formatting
   include_timestamp: true         # Include timestamp in messages
   include_sequence: true          # Include sequence numbers
-  compact_format: false           # Use compact JSON (no pretty printing)
-  exchange_name: "CXA"          # Default exchange name
+  compact_format: false           # Use pretty printing for readability
+  exchange_name: "CXA"           # Default exchange name
 
-# Kafka topic routing configuration
+# Simplified topic routing configuration
 topic_config:
-  snapshot_prefix: "market_depth."  # Prefix for snapshot topics
-  cdc_topic: "market_depth_cdc"             # Topic for CDC events
-  use_depth_in_topic: true                  # Include depth in topic name
-  use_symbol_partitioning: true             # Use symbol-based partitioning
-  num_partitions: 8                        # Number of partitions for consistent hashing
+  snapshot_prefix: "market_depth."  # Topic format: market_depth.[SYMBOL_NAME]
+  cdc_topic: "market_depth_cdc"    # Not used in simplified version
+  use_depth_in_topic: false       # Symbol goes in topic name, not depth
+  use_symbol_partitioning: true   # Use symbol-based partitioning
+  num_partitions: 8               # Total partitions across all topics
 
 # Performance monitoring and alerting
 monitoring:
@@ -99,7 +92,7 @@ reliability:
   circuit_breaker_timeout_s: 60    # Time before trying to close circuit
   max_retry_attempts: 3
   retry_backoff_ms: 1000
-  enable_dead_letter_queue: true
+  enable_dead_letter_queue: false  # Simplified version doesn't need DLQ
   dead_letter_topic: "market_depth_dlq"
 
 # Development and testing settings (override in dev/test configs)
@@ -116,7 +109,7 @@ data_quality:
   max_price_deviation_percent: 50  # Alert if price moves more than 50%
   max_quantity_per_level: 1000000000  # Maximum quantity per price level
   min_sequence_number: 0
-  enable_duplicate_detection: true
+  enable_duplicate_detection: false  # Simplified version doesn't need this
   duplicate_cache_size: 10000
 
 # Security settings
@@ -130,46 +123,44 @@ security:
   sasl_username: ""              # SASL username
   sasl_password: ""              # SASL password
 
-# Output destinations (for future extensibility)
+# Simplified output destinations
 outputs:
   kafka:
     enabled: true
+    topic_format: "market_depth.{symbol}"  # Dynamic topic per symbol
   file:
     enabled: false
-    path: "/app/data/output"
-    format: "jsonl"               # jsonl, csv, parquet
-    rotation_size_mb: 100
   database:
     enabled: false
-    connection_string: ""
-    table_prefix: "market_depth_"
   redis:
     enabled: false
-    host: "localhost"
-    port: 6379
-    db: 0
-    key_prefix: "md:"
 
-# Symbol filtering and routing
+# Symbol filtering and routing - simplified
 symbol_config:
   enable_symbol_filter: false
   allowed_symbols: []             # Empty = allow all symbols
   blocked_symbols: []             # Symbols to explicitly block
-  symbol_groups:                  # Group symbols for different processing
-    high_volume: []               # High-volume symbols for priority processing
-    low_latency: []               # Symbols requiring ultra-low latency
-    experimental: []              # Symbols for testing new features
+  symbol_groups: {}               # Not used in simplified version
 
-# Rate limiting and throttling
+# Rate limiting and throttling - simplified
 rate_limiting:
   enable_rate_limiting: false
-  max_messages_per_second: 10000
-  max_messages_per_symbol_per_second: 100
-  burst_size: 1000
-  backoff_strategy: "exponential"  # linear, exponential
+  max_messages_per_second: 50000  # Higher throughput for simplified processing
+  max_messages_per_symbol_per_second: 1000
+  burst_size: 5000
+  backoff_strategy: "linear"
 
 # Timezone and localization
 localization:
   timezone: "UTC"
   date_format: "ISO8601"
   number_format: "US"            # US, EU, etc.
+
+# Simplified processor specific settings
+simplified_processor:
+  direct_snapshot_processing: true
+  skip_order_book_state: true
+  enable_fast_path: true
+  parallel_symbol_processing: false  # Keep sequential for now
+  max_symbols_in_memory: 100000
+  symbol_cache_ttl_minutes: 60

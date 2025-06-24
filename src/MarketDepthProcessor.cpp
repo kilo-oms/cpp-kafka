@@ -1,6 +1,6 @@
 /**
  * @file    MarketDepthProcessor.cpp
- * @brief   Main market depth processor implementation
+ * @brief   Simplified market depth processor implementation
  */
 
 #include "MarketDepthProcessor.hpp"
@@ -9,19 +9,17 @@
 #include <flatbuffers/flatbuffers.h>
 
 namespace market_depth {
+
     // ProcessorConfig implementation
     ProcessorConfig::ProcessorConfig()
         : kafka_config_path("config/config.yaml")
           , input_topic("market_depth_input")
           , consumer_poll_timeout_ms(100)
-          , max_processing_threads(4)
-          , max_messages_per_batch(1000)
+          , num_partitions(8)
+          , depth_levels({5, 10, 25, 50})
           , flush_interval_ms(1000)
           , enable_statistics(true)
-          , stats_report_interval_s(30)
-          , use_symbol_threading(true)
-          , message_queue_size(10000)
-          , enable_back_pressure(true) {
+          , stats_report_interval_s(30) {
     }
 
     MarketDepthProcessor::MarketDepthProcessor(const ProcessorConfig &config)
@@ -29,8 +27,16 @@ namespace market_depth {
           , running_(false)
           , should_stop_(false)
           , last_flush_time_(std::chrono::high_resolution_clock::now()) {
-        SPDLOG_INFO("MarketDepthProcessor created with config: input_topic={}, max_threads={}, enable_cdc={}",
-                    config_.input_topic, config_.max_processing_threads, config_.depth_config.enable_cdc);
+        SPDLOG_INFO("MarketDepthProcessor created with config: input_topic={}, partitions={}, depth_levels=[{}]",
+                    config_.input_topic, config_.num_partitions,
+                    [&]() {
+                        std::string levels;
+                        for (size_t i = 0; i < config_.depth_levels.size(); ++i) {
+                            if (i > 0) levels += ",";
+                            levels += std::to_string(config_.depth_levels[i]);
+                        }
+                        return levels;
+                    }());
     }
 
     MarketDepthProcessor::~MarketDepthProcessor() {
@@ -49,12 +55,6 @@ namespace market_depth {
             // Initialize Kafka producer
             KafkaProducer &producer = KafkaProducer::instance();
             producer.initialize(config_.kafka_config_path);
-
-            // Initialize order book manager with CDC callback
-            auto cdc_callback = [this](const CDCEvent &event) {
-                this->on_cdc_event(event);
-            };
-            orderbook_manager_ = std::make_unique<OrderBookManager>(config_.depth_config, cdc_callback);
 
             // Initialize message factory and router
             message_factory_ = std::make_unique<MessageFactory>(config_.json_config);
@@ -80,7 +80,7 @@ namespace market_depth {
         running_ = true;
         should_stop_ = false;
 
-        SPDLOG_INFO("Starting market depth processor (max_runtime={}s)", max_runtime_s);
+        SPDLOG_INFO("Starting simplified market depth processor (max_runtime={}s)", max_runtime_s);
 
         // Start statistics thread if enabled
         if (config_.enable_statistics) {
@@ -105,7 +105,7 @@ namespace market_depth {
     void MarketDepthProcessor::stop_processing() {
         if (!running_) return;
 
-        SPDLOG_INFO("Stopping market depth processor...");
+        SPDLOG_INFO("Stopping simplified market depth processor...");
         should_stop_ = true;
 
         // Wait for threads to finish
@@ -120,14 +120,14 @@ namespace market_depth {
             print_statistics();
         }
 
-        SPDLOG_INFO("Market depth processor stopped");
+        SPDLOG_INFO("Simplified market depth processor stopped");
     }
 
     void MarketDepthProcessor::processing_loop() {
         KafkaConsumer &consumer = KafkaConsumer::instance();
 
         while (!should_stop_) {
-            // Poll for message
+            // Poll for message from any partition
             rd_kafka_message_t *msg = consumer.consume(config_.consumer_poll_timeout_ms);
 
             if (!msg) {
@@ -192,7 +192,7 @@ namespace market_depth {
 
             // Check message type
             if (envelope->msg_type() != fb::BookMsg_OrderBookSnapshot) {
-                // SPDLOG_DEBUG("Ignoring non-snapshot message type: {}", envelope->msg_type());
+                SPDLOG_DEBUG("Ignoring non-snapshot message type: {}", envelope->msg_type());
                 return true; // Not an error, just not what we're looking for
             }
 
@@ -203,79 +203,129 @@ namespace market_depth {
                 return false;
             }
 
-            // Process snapshot through order book manager
-            bool success = orderbook_manager_->process_snapshot(snapshot);
+            // Process snapshot directly
+            return process_snapshot(snapshot);
 
-            if (success && config_.depth_config.enable_snapshots) {
-                // Get the updated order book snapshot
-                if (snapshot->symbol()) {
-                    SPDLOG_INFO("Market depth processing succeeded: {}", snapshot->symbol()->str());
-                    std::string symbol = snapshot->symbol()->str();
-                    // publish_snapshots(snapshot);
-                    OrderBook *orderbook = orderbook_manager_->get_or_create_orderbook(symbol);
-
-                    if (orderbook && orderbook->is_initialized()) {
-                        publish_snapshots(orderbook->get_snapshot());
-                    }
-                }
-            }
-
-            return success;
         } catch (const std::exception &e) {
             SPDLOG_ERROR("Exception processing message: {}", e.what());
             return false;
         }
     }
 
-    void MarketDepthProcessor::on_cdc_event(const CDCEvent &event) {
-        if (config_.depth_config.enable_cdc) {
-            publish_cdc_event(event);
-            metrics_.symbol_message_counts[event.symbol]++;
+    bool MarketDepthProcessor::process_snapshot(const fb::OrderBookSnapshot* snapshot) {
+        if (!snapshot || !snapshot->symbol()) {
+            SPDLOG_ERROR("Invalid snapshot: null or missing symbol");
+            return false;
+        }
+
+        std::string symbol = snapshot->symbol()->str();
+
+        try {
+            // Publish snapshots directly for all depth levels
+            publish_snapshots(symbol, snapshot);
+
+            // Update symbol-specific metrics
+            metrics_.symbol_message_counts[symbol]++;
+
+            SPDLOG_TRACE("Processed snapshot for symbol: {} (seq: {})", symbol, snapshot->seq());
+            return true;
+
+        } catch (const std::exception &e) {
+            SPDLOG_ERROR("Failed to process snapshot for symbol {}: {}", symbol, e.what());
+            return false;
         }
     }
 
-    void MarketDepthProcessor::publish_snapshots(const InternalOrderBookSnapshot &snapshot) {
+    void MarketDepthProcessor::publish_snapshots(const std::string& symbol, const fb::OrderBookSnapshot* snapshot) {
         try {
-            // Generate JSON for all configured depth levels
-            auto depth_messages = message_factory_->create_multi_depth_json(
-                snapshot, config_.depth_config.depth_levels);
+            // Convert FlatBuffers snapshot to internal format for each depth level
+            for (uint32_t depth : config_.depth_levels) {
+                // Create internal snapshot structure
+                InternalOrderBookSnapshot internal_snapshot;
+                internal_snapshot.symbol = symbol;
+                internal_snapshot.sequence = snapshot->seq();
+                internal_snapshot.timestamp = get_timestamp();
+                internal_snapshot.last_trade_price = snapshot->recent_trade_price();
+                internal_snapshot.last_trade_quantity = snapshot->recent_trade_qty();
 
-            for (const auto &[depth, json_payload]: depth_messages) {
-                // Route message to appropriate topic/partition
-                auto kafka_msg = message_router_->route_snapshot(
-                    snapshot.symbol, depth, json_payload);
+                // Convert bid levels (limited by depth)
+                if (snapshot->buy_side()) {
+                    uint32_t bid_count = 0;
+                    for (uint32_t i = 0; i < snapshot->buy_side()->size() && bid_count < depth; ++i) {
+                        const auto* fb_level = snapshot->buy_side()->Get(i);
+                        if (fb_level) {
+                            PriceLevel level = convert_price_level(fb_level);
+                            if (level.price > 0 && level.quantity > 0) {
+                                internal_snapshot.bid_levels[level.price] = level;
+                                bid_count++;
+                            }
+                        }
+                    }
+                }
 
-                // Publish to Kafka
-                KafkaPush(kafka_msg.topic, kafka_msg.partition,
-                          kafka_msg.payload.c_str(), kafka_msg.payload.size());
+                // Convert ask levels (limited by depth)
+                if (snapshot->sell_side()) {
+                    uint32_t ask_count = 0;
+                    for (uint32_t i = 0; i < snapshot->sell_side()->size() && ask_count < depth; ++i) {
+                        const auto* fb_level = snapshot->sell_side()->Get(i);
+                        if (fb_level) {
+                            PriceLevel level = convert_price_level(fb_level);
+                            if (level.price > 0 && level.quantity > 0) {
+                                internal_snapshot.ask_levels[level.price] = level;
+                                ask_count++;
+                            }
+                        }
+                    }
+                }
 
-                metrics_.messages_published++;
+                // Only publish if we have sufficient data
+                if (internal_snapshot.bid_levels.size() >= depth && internal_snapshot.ask_levels.size() >= depth) {
+                    // Generate JSON for this depth level
+                    std::string json_payload = message_factory_->create_snapshot_json(internal_snapshot, depth);
+
+                    // Create topic name: market_depth.[SYMBOL_NAME]
+                    std::string topic = "market_depth." + symbol;
+
+                    // Use symbol for partitioning
+                    uint32_t partition = message_router_->calculate_partition(symbol);
+
+                    // Publish to Kafka
+                    KafkaPush(topic, partition, json_payload.c_str(), json_payload.size());
+                    metrics_.messages_published++;
+
+                    SPDLOG_TRACE("Published depth {} for symbol {} to topic {} partition {}",
+                                depth, symbol, topic, partition);
+                } else {
+                    SPDLOG_DEBUG("Insufficient depth for symbol {}: requested={}, available_bids={}, available_asks={}",
+                                symbol, depth, internal_snapshot.bid_levels.size(), internal_snapshot.ask_levels.size());
+                }
             }
+
         } catch (const std::exception &e) {
-            SPDLOG_ERROR("Failed to publish snapshots for symbol {}: {}",
-                         snapshot.symbol, e.what());
+            SPDLOG_ERROR("Failed to publish snapshots for symbol {}: {}", symbol, e.what());
             metrics_.processing_errors++;
         }
     }
 
-    void MarketDepthProcessor::publish_cdc_event(const CDCEvent &event) {
-        try {
-            // Generate CDC JSON
-            std::string json_payload = message_factory_->create_cdc_json(event);
+    PriceLevel MarketDepthProcessor::convert_price_level(const fb::OrderMsgLevel* fb_level) const {
+        PriceLevel level;
+        level.price = fb_level->price();
+        level.quantity = 0;
+        level.num_orders = 0;
+        level.exchanges.push_back(config_.json_config.exchange_name);
 
-            // Route message
-            auto kafka_msg = message_router_->route_cdc(event.symbol, json_payload);
-
-            // Publish to Kafka
-            KafkaPush(kafka_msg.topic, kafka_msg.partition,
-                      kafka_msg.payload.c_str(), kafka_msg.payload.size());
-
-            metrics_.messages_published++;
-        } catch (const std::exception &e) {
-            SPDLOG_ERROR("Failed to publish CDC event for symbol {}: {}",
-                         event.symbol, e.what());
-            metrics_.processing_errors++;
+        // Aggregate orders at this price level
+        if (fb_level->orders()) {
+            for (uint32_t j = 0; j < fb_level->orders()->size(); ++j) {
+                const auto* order = fb_level->orders()->Get(j);
+                if (order) {
+                    level.quantity += order->qty();
+                    level.num_orders++;
+                }
+            }
         }
+
+        return level;
     }
 
     void MarketDepthProcessor::stats_thread() {
@@ -288,11 +338,10 @@ namespace market_depth {
         }
     }
 
-    //
-    // PerformanceMetrics MarketDepthProcessor::get_metrics() const {
-    //     std::lock_guard lock(metrics_mutex_);
-    //     return metrics_;
-    // }
+    PerformanceMetrics MarketDepthProcessor::get_metrics() const {
+        std::lock_guard lock(metrics_mutex_);
+        return metrics_;
+    }
 
     void MarketDepthProcessor::print_statistics() const {
         auto now = std::chrono::high_resolution_clock::now();
@@ -310,27 +359,34 @@ namespace market_depth {
         uint64_t min_processing_time = metrics_.min_processing_time_us.load();
 
         double avg_processing_time_us = processed > 0 ? static_cast<double>(total_processing_time) / processed : 0.0;
-
         double msg_rate = total_runtime_s > 0 ? static_cast<double>(consumed) / total_runtime_s : 0.0;
 
-        SPDLOG_INFO("=== PERFORMANCE STATISTICS ({}s runtime) ===", total_runtime_s);
+        SPDLOG_INFO("=== SIMPLIFIED PROCESSOR STATISTICS ({}s runtime) ===", total_runtime_s);
         SPDLOG_INFO("Messages: consumed={}, processed={}, published={}", consumed, processed, published);
         SPDLOG_INFO("Errors: processing={}, kafka={}", errors, kafka_errors);
         SPDLOG_INFO("Rate: {:.1f} msg/s", msg_rate);
         SPDLOG_INFO("Processing time (μs): avg={:.1f}, min={}, max={}",
                     avg_processing_time_us, min_processing_time, max_processing_time);
 
-        // Top symbols by message count
-        SPDLOG_INFO("Active symbols: {}", orderbook_manager_->get_tracked_symbols().size());
+        // Active symbols count
+        SPDLOG_INFO("Active symbols: {}", metrics_.symbol_message_counts.size());
 
-        auto aggregate_stats = orderbook_manager_->get_aggregate_stats();
-        SPDLOG_INFO("Order book stats: symbols={}, total_processed={}",
-                    aggregate_stats.symbol_message_counts.size(),
-                    aggregate_stats.messages_processed);
+        // Top 10 symbols by message count
+        std::vector<std::pair<std::string, uint64_t>> symbol_stats;
+        for (const auto& [symbol, count] : metrics_.symbol_message_counts) {
+            symbol_stats.emplace_back(symbol, count.load());
+        }
+
+        std::sort(symbol_stats.begin(), symbol_stats.end(),
+                  [](const auto& a, const auto& b) { return a.second > b.second; });
+
+        SPDLOG_INFO("Top symbols by message count:");
+        for (size_t i = 0; i < std::min(symbol_stats.size(), size_t(10)); ++i) {
+            SPDLOG_INFO("  {}: {}", symbol_stats[i].first, symbol_stats[i].second);
+        }
     }
 
     // ProcessorShutdownHandler Implementation
-
     ProcessorShutdownHandler *ProcessorShutdownHandler::instance_ = nullptr;
 
     ProcessorShutdownHandler::ProcessorShutdownHandler(MarketDepthProcessor &processor)
@@ -352,4 +408,5 @@ namespace market_depth {
             instance_->processor_.stop_processing();
         }
     }
+
 } // namespace market_depth

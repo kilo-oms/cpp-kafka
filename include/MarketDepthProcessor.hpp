@@ -1,15 +1,15 @@
 /**
  * @file    MarketDepthProcessor.hpp
- * @brief   Main market depth processing engine
+ * @brief   Simplified market depth processing engine - direct snapshot processing
  *
  * Developer: Equix Technologies
  * Copyright: Equix Technologies Pty Ltd
  * Created: June 2025
  *
  * Description:
- *   Main processing engine that orchestrates message consumption from Kafka,
- *   order book state management, CDC generation, and publishing of snapshots
- *   and CDC events. Designed for high-throughput, low-latency processing.
+ *   Simplified processing engine that consumes FlatBuffers snapshots directly
+ *   and publishes multi-depth JSON messages without maintaining order book state.
+ *   Designed for real-time processing with 8-partition consumption.
  */
 
 #pragma once
@@ -17,7 +17,6 @@
 #ifndef MARKET_DEPTH_PROCESSOR_HPP_
 #define MARKET_DEPTH_PROCESSOR_HPP_
 
-// #include "OrderBook.hpp"
 #include "MessageFactory.hpp"
 #include "KafkaConsumer.hpp"
 #include "KafkaProducer.hpp"
@@ -27,6 +26,7 @@
 #include <atomic>
 #include <chrono>
 #include <memory>
+#include <vector>
 
 namespace market_depth {
 
@@ -34,17 +34,17 @@ namespace market_depth {
 namespace fb = ::md;
 
 /**
- * @brief Configuration for the market depth processor
+ * @brief Simplified configuration for the market depth processor
  */
 struct ProcessorConfig {
     // Kafka configuration
     std::string kafka_config_path;
     std::string input_topic;
     int consumer_poll_timeout_ms;
-    int max_processing_threads;
+    int num_partitions;  // Number of partitions to consume (8)
 
-    // Order book configuration
-    DepthConfig depth_config;
+    // Depth configuration
+    std::vector<uint32_t> depth_levels;
 
     // Message factory configuration
     MessageFactory::JsonConfig json_config;
@@ -53,15 +53,9 @@ struct ProcessorConfig {
     MessageRouter::TopicConfig topic_config;
 
     // Processing configuration
-    uint32_t max_messages_per_batch;
     uint32_t flush_interval_ms;
     bool enable_statistics;
     uint32_t stats_report_interval_s;
-
-    // Performance tuning
-    bool use_symbol_threading;
-    uint32_t message_queue_size;
-    bool enable_back_pressure;
 
     ProcessorConfig();
 };
@@ -113,7 +107,7 @@ struct PerformanceMetrics {
 };
 
 /**
- * @brief Main market depth processor
+ * @brief Simplified market depth processor
  */
 class MarketDepthProcessor {
 public:
@@ -153,7 +147,7 @@ public:
 
 private:
     /**
-     * @brief Main processing loop
+     * @brief Main processing loop for a specific partition
      */
     void processing_loop();
 
@@ -163,24 +157,24 @@ private:
     bool process_message(rd_kafka_message_t* msg);
 
     /**
-     * @brief Handle CDC event callback
+     * @brief Process FlatBuffers snapshot and publish directly
      */
-    void on_cdc_event(const CDCEvent& event);
+    bool process_snapshot(const fb::OrderBookSnapshot* snapshot);
 
     /**
      * @brief Publish snapshot messages for all depth levels
      */
-    void publish_snapshots(const InternalOrderBookSnapshot &snapshot);
-
-    /**
-     * @brief Publish CDC event message
-     */
-    void publish_cdc_event(const CDCEvent& event);
+    void publish_snapshots(const std::string& symbol, const fb::OrderBookSnapshot* snapshot);
 
     /**
      * @brief Statistics reporting thread
      */
     void stats_thread();
+
+    /**
+     * @brief Convert FlatBuffers price level to internal format
+     */
+    PriceLevel convert_price_level(const fb::OrderMsgLevel* fb_level) const;
 
     /**
      * @brief Get current timestamp in microseconds
@@ -194,7 +188,6 @@ private:
     ProcessorConfig config_;
 
     // Core components
-    // std::unique_ptr<OrderBookManager> orderbook_manager_;
     std::unique_ptr<MessageFactory> message_factory_;
     std::unique_ptr<MessageRouter> message_router_;
 
@@ -226,6 +219,6 @@ private:
     static ProcessorShutdownHandler* instance_;
 };
 
-} // namespace md
+} // namespace market_depth
 
 #endif /* MARKET_DEPTH_PROCESSOR_HPP_ */

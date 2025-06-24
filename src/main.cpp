@@ -1,10 +1,14 @@
 /**
  * @file    main.cpp
- * @brief   Market Depth Processor - Main Entry Point
+ * @brief   Simplified Market Depth Processor - Main Entry Point
+ *
+ * Description:
+ *   Simplified version that processes FlatBuffers snapshots directly
+ *   and publishes to market_depth.[SYMBOL_NAME] topics without maintaining
+ *   order book state or CDC functionality.
  */
 
 #include <iostream>
-#include <random>
 #include <chrono>
 #include <sstream>
 #include <iomanip>
@@ -19,7 +23,7 @@
 #include "spdlog/spdlog.h"
 #include "spdlog/sinks/rotating_file_sink.h"
 
-/* Market Depth Processing Components */
+/* Simplified Market Depth Processing Components */
 #include "MarketDepthProcessor.hpp"
 #include "KafkaProducer.hpp"
 #include "KafkaConsumer.hpp"
@@ -30,13 +34,14 @@
 void print_banner() {
     std::cout << R"(
 ╔══════════════════════════════════════════════════════════════╗
-║               CBOE Market Depth Processor v1.0               ║
+║          Simplified CBOE Market Depth Processor v1.0         ║
 ║                   Equix Technologies Pty Ltd                 ║
 ╠══════════════════════════════════════════════════════════════╣
-║  High-frequency market data processing system                ║
+║  Simplified high-frequency market data processing            ║
 ║  Input: CBOE L2 snapshots (FlatBuffers via Kafka)            ║
-║  Output: Multi-depth JSON snapshots + CDC events             ║
-║  Target: 10,000+ msg/s across 200,000+ symbols               ║
+║  Output: Multi-depth JSON to market_depth.[SYMBOL] topics    ║
+║  Features: Direct processing, 8-partition consumption        ║
+║  Disabled: Order book state, CDC events                      ║
 ╚══════════════════════════════════════════════════════════════╝
 )" << std::endl;
 }
@@ -51,16 +56,15 @@ void print_usage(const char* program_name) {
               << "  -t, --topic TOPIC     Input Kafka topic (default: from config)\n"
               << "  -r, --runtime SECONDS Maximum runtime in seconds (0 = infinite)\n"
               << "  -d, --depths LEVELS   Comma-separated depth levels (e.g., 5,10,25,50)\n"
-              << "  --no-cdc             Disable CDC event generation\n"
-              << "  --no-snapshots       Disable snapshot publishing\n"
               << "  --stats-interval SEC  Statistics reporting interval (default: 30)\n"
               << "  -v, --verbose        Enable verbose logging (debug level)\n"
               << "  -q, --quiet          Quiet mode (warnings and errors only)\n"
               << "  -h, --help           Show this help message\n\n"
               << "Examples:\n"
-              << "  " << program_name << " -c config/prod.yaml -t market_depth_cboe\n"
-              << "  " << program_name << " --runtime 3600 --depths 5,10,25 --no-cdc\n"
-              << "  " << program_name << " -v --stats-interval 10\n\n";
+              << "  " << program_name << " -c config/prod.yaml -t ORDERBOOK\n"
+              << "  " << program_name << " --runtime 3600 --depths 5,10,25\n"
+              << "  " << program_name << " -v --stats-interval 10\n\n"
+              << "Note: CDC and order book state management are disabled in this version.\n\n";
 }
 
 /**
@@ -70,7 +74,7 @@ std::string get_log_filename(const std::string &log_folder) {
     auto now = std::chrono::system_clock::now();
     std::time_t t = std::chrono::system_clock::to_time_t(now);
     std::ostringstream ss;
-    ss << log_folder << "/market_depth_";
+    ss << log_folder << "/simplified_market_depth_";
     ss << std::put_time(std::localtime(&t), "%Y_%m_%d") << ".log";
     return ss.str();
 }
@@ -90,7 +94,7 @@ std::shared_ptr<spdlog::logger> setup_logger(
     size_t max_files = 50;
 
     std::string filename = get_log_filename(log_folder);
-    auto logger = spdlog::rotating_logger_mt("market_depth_logger", filename, max_file_size, max_files);
+    auto logger = spdlog::rotating_logger_mt("simplified_market_depth_logger", filename, max_file_size, max_files);
 
     // Enhanced log pattern with thread ID and microsecond precision
     logger->set_pattern("[%Y-%m-%d %H:%M:%S.%f][%t][%l][%s:%#][%!] %v");
@@ -102,7 +106,7 @@ std::shared_ptr<spdlog::logger> setup_logger(
     }
 
     spdlog::set_default_logger(logger);
-    spdlog::flush_every(std::chrono::seconds(3)); // Frequent flushing for real-time monitoring
+    spdlog::flush_every(std::chrono::seconds(3));
     return logger;
 }
 
@@ -135,7 +139,7 @@ std::vector<uint32_t> parse_depth_levels(const std::string& depth_str) {
     while (std::getline(ss, item, ',')) {
         try {
             uint32_t level = static_cast<uint32_t>(std::stoul(item));
-            if (level > 0 && level <= 1000) { // Reasonable bounds
+            if (level > 0 && level <= 1000) {
                 levels.push_back(level);
             } else {
                 SPDLOG_WARN("Invalid depth level ignored: {}", level);
@@ -154,7 +158,7 @@ std::vector<uint32_t> parse_depth_levels(const std::string& depth_str) {
 }
 
 /**
- * @brief Load processor configuration from YAML and command line
+ * @brief Load simplified processor configuration from YAML and command line
  */
 market_depth::ProcessorConfig load_processor_config(const std::string& config_path,
                                          const std::map<std::string, std::string>& cli_overrides) {
@@ -169,22 +173,19 @@ market_depth::ProcessorConfig load_processor_config(const std::string& config_pa
         // Load from YAML with defaults
         if (yaml_config["processor"]) {
             const auto& proc = yaml_config["processor"];
-            config.input_topic = proc["input_topic"] ? proc["input_topic"].as<std::string>() : "market_depth_input";
+            config.input_topic = proc["input_topic"] ? proc["input_topic"].as<std::string>() : "ORDERBOOK";
             config.consumer_poll_timeout_ms = proc["poll_timeout_ms"] ? proc["poll_timeout_ms"].as<int>() : 100;
-            config.max_processing_threads = proc["max_threads"] ? proc["max_threads"].as<int>() : 4;
+            config.num_partitions = proc["num_partitions"] ? proc["num_partitions"].as<int>() : 8;
             config.flush_interval_ms = proc["flush_interval_ms"] ? proc["flush_interval_ms"].as<uint32_t>() : 1000;
             config.stats_report_interval_s = proc["stats_interval_s"] ? proc["stats_interval_s"].as<uint32_t>() : 30;
         }
 
-        // Load depth configuration
+        // Load depth configuration (simplified - no CDC)
         if (yaml_config["depth_config"]) {
             const auto& depth = yaml_config["depth_config"];
             if (depth["levels"]) {
-                config.depth_config.depth_levels = depth["levels"].as<std::vector<uint32_t>>();
+                config.depth_levels = depth["levels"].as<std::vector<uint32_t>>();
             }
-            config.depth_config.enable_cdc = depth["enable_cdc"] ? depth["enable_cdc"].as<bool>() : true;
-            config.depth_config.enable_snapshots = depth["enable_snapshots"] ? depth["enable_snapshots"].as<bool>() : true;
-            config.depth_config.max_price_levels = depth["max_price_levels"] ? depth["max_price_levels"].as<uint32_t>() : 100;
         }
 
         // Load JSON formatting configuration
@@ -195,17 +196,15 @@ market_depth::ProcessorConfig load_processor_config(const std::string& config_pa
             config.json_config.include_timestamp = json["include_timestamp"] ? json["include_timestamp"].as<bool>() : true;
             config.json_config.include_sequence = json["include_sequence"] ? json["include_sequence"].as<bool>() : true;
             config.json_config.compact_format = json["compact_format"] ? json["compact_format"].as<bool>() : false;
-            config.json_config.exchange_name = json["exchange_name"] ? json["exchange_name"].as<std::string>() : "CBOE";
+            config.json_config.exchange_name = json["exchange_name"] ? json["exchange_name"].as<std::string>() : "CXA";
         }
 
-        // Load topic routing configuration
+        // Load simplified topic routing configuration
         if (yaml_config["topic_config"]) {
             const auto& topic = yaml_config["topic_config"];
-            config.topic_config.snapshot_topic_prefix = topic["snapshot_prefix"] ? topic["snapshot_prefix"].as<std::string>() : "market_depth_snapshot_";
-            config.topic_config.cdc_topic = topic["cdc_topic"] ? topic["cdc_topic"].as<std::string>() : "market_depth_cdc";
-            config.topic_config.use_depth_in_topic = topic["use_depth_in_topic"] ? topic["use_depth_in_topic"].as<bool>() : true;
+            config.topic_config.snapshot_topic_prefix = topic["snapshot_prefix"] ? topic["snapshot_prefix"].as<std::string>() : "market_depth.";
             config.topic_config.use_symbol_partitioning = topic["use_symbol_partitioning"] ? topic["use_symbol_partitioning"].as<bool>() : true;
-            config.topic_config.num_partitions = topic["num_partitions"] ? topic["num_partitions"].as<uint32_t>() : 16;
+            config.topic_config.num_partitions = topic["num_partitions"] ? topic["num_partitions"].as<uint32_t>() : 8;
         }
 
     } catch (const YAML::Exception& e) {
@@ -217,13 +216,9 @@ market_depth::ProcessorConfig load_processor_config(const std::string& config_pa
         if (key == "topic") {
             config.input_topic = value;
         } else if (key == "depths") {
-            config.depth_config.depth_levels = parse_depth_levels(value);
+            config.depth_levels = parse_depth_levels(value);
         } else if (key == "stats_interval") {
             config.stats_report_interval_s = static_cast<uint32_t>(std::stoul(value));
-        } else if (key == "no_cdc") {
-            config.depth_config.enable_cdc = false;
-        } else if (key == "no_snapshots") {
-            config.depth_config.enable_snapshots = false;
         }
     }
 
@@ -242,6 +237,7 @@ int main(int argc, char *argv[]) {
     std::string log_folder = "/tmp";
     uint32_t max_runtime_s = 0;
     std::map<std::string, std::string> cli_overrides;
+
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
 
@@ -256,10 +252,6 @@ int main(int argc, char *argv[]) {
             max_runtime_s = static_cast<uint32_t>(std::stoul(argv[++i]));
         } else if ((arg == "-d" || arg == "--depths") && i + 1 < argc) {
             cli_overrides["depths"] = argv[++i];
-        } else if (arg == "--no-cdc") {
-            cli_overrides["no_cdc"] = "true";
-        } else if (arg == "--no-snapshots") {
-            cli_overrides["no_snapshots"] = "true";
         } else if (arg == "--stats-interval" && i + 1 < argc) {
             cli_overrides["stats_interval"] = argv[++i];
         } else if (arg == "-v" || arg == "--verbose") {
@@ -287,39 +279,45 @@ int main(int argc, char *argv[]) {
 
     // Setup logging
     spdlog::level::level_enum log_level = parse_log_level(log_level_str);
-    // auto logger = setup_logger(log_level, log_folder);
-    SPDLOG_INFO("Market Depth Processor starting...");
+    auto logger = setup_logger(log_level, log_folder);
+
+    SPDLOG_INFO("Simplified Market Depth Processor starting...");
     SPDLOG_INFO("Config: {}, Log level: {}, Max runtime: {}s", config_path, log_level_str, max_runtime_s);
 
     try {
         // Load processor configuration
         auto config = load_processor_config(config_path, cli_overrides);
 
-        SPDLOG_INFO("Processor config loaded: input_topic={}, depth_levels=[{}], cdc={}, snapshots={}",
+        SPDLOG_INFO("Simplified processor config loaded: input_topic={}, partitions={}, depth_levels=[{}]",
                    config.input_topic,
+                   config.num_partitions,
                    [&]() {
                        std::string levels;
-                       for (size_t i = 0; i < config.depth_config.depth_levels.size(); ++i) {
+                       for (size_t i = 0; i < config.depth_levels.size(); ++i) {
                            if (i > 0) levels += ",";
-                           levels += std::to_string(config.depth_config.depth_levels[i]);
+                           levels += std::to_string(config.depth_levels[i]);
                        }
                        return levels;
-                   }(),
-                   config.depth_config.enable_cdc,
-                   config.depth_config.enable_snapshots);
+                   }());
 
-        // Create and initialize processor
+        SPDLOG_INFO("Output format: market_depth.[SYMBOL_NAME] topics with symbol-based partitioning");
+        SPDLOG_INFO("Features: Direct snapshot processing, No order book state, No CDC events");
+
+        // Create and initialize simplified processor
         market_depth::MarketDepthProcessor processor(config);
 
         if (!processor.initialize()) {
-            SPDLOG_ERROR("Failed to initialize processor");
+            SPDLOG_ERROR("Failed to initialize simplified processor");
             return 1;
         }
+
+        // Setup graceful shutdown handler
+        market_depth::ProcessorShutdownHandler shutdown_handler(processor);
 
         // Start processing (blocking call)
         processor.start_processing(max_runtime_s);
 
-        SPDLOG_INFO("Market Depth Processor finished successfully");
+        SPDLOG_INFO("Simplified Market Depth Processor finished successfully");
         return 0;
 
     } catch (const std::exception& e) {

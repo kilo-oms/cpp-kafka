@@ -1,6 +1,6 @@
 /**
  * @file    MessageFactory.cpp
- * @brief   JSON message factory implementation
+ * @brief   Simplified JSON message factory implementation - snapshots only
  */
 
 #include "MessageFactory.hpp"
@@ -9,6 +9,7 @@
 #include <cmath>
 
 namespace market_depth {
+
     // JsonConfig implementation
     MessageFactory::JsonConfig::JsonConfig()
         : price_decimals(4)
@@ -77,20 +78,11 @@ namespace market_depth {
         return config_.compact_format ? j.dump() : j.dump(2);
     }
 
+    // CDC functionality removed - not needed in simplified version
     std::string MessageFactory::create_cdc_json(const CDCEvent &event) const {
-        nlohmann::json j;
-
-        // Add common fields
-        add_common_fields(j, event.symbol, event.sequence, event.timestamp);
-
-        j["message_type"] = "cdc";
-        j["event_type"] = cdc_event_type_to_string(event.event_type);
-        j["side"] = side_to_string(event.side);
-
-        // Add level information
-        j["level"] = price_level_to_json(event.level, event.side, event.symbol);
-
-        return config_.compact_format ? j.dump() : j.dump(2);
+        // This function is kept for interface compatibility but should not be used
+        SPDLOG_WARN("CDC functionality disabled in simplified processor");
+        return "{}";
     }
 
     std::map<uint32_t, std::string> MessageFactory::create_multi_depth_json(
@@ -144,7 +136,7 @@ namespace market_depth {
             j["exchanges"] = level.exchanges;
         } else {
             // Default to configured exchange
-            j["exchanges"] = nlohmann::json::string_t({config_.exchange_name});
+            j["exchanges"] = nlohmann::json::array({config_.exchange_name});
         }
 
         return j;
@@ -183,13 +175,8 @@ namespace market_depth {
     }
 
     std::string MessageFactory::cdc_event_type_to_string(CDCEventType type) {
-        switch (type) {
-            case CDCEventType::LevelAdded: return "level_added";
-            case CDCEventType::LevelModified: return "level_modified";
-            case CDCEventType::LevelRemoved: return "level_removed";
-            case CDCEventType::BookCleared: return "book_cleared";
-            default: return "unknown";
-        }
+        // CDC functionality disabled
+        return "disabled";
     }
 
     // KafkaMessage implementation
@@ -199,17 +186,17 @@ namespace market_depth {
 
     // MessageRouter::TopicConfig implementation
     MessageRouter::TopicConfig::TopicConfig()
-        : snapshot_topic_prefix("market_depth_snapshot_")
-          , cdc_topic("market_depth_cdc")
-          , use_depth_in_topic(true)
+        : snapshot_topic_prefix("market_depth.")  // Changed to new format
+          , cdc_topic("market_depth_cdc")  // Keep for compatibility but not used
+          , use_depth_in_topic(false)  // Disabled - we use symbol in topic now
           , use_symbol_partitioning(true)
-          , num_partitions(16) {
+          , num_partitions(8) {  // Default to 8 partitions as requested
     }
 
     // MessageRouter implementation
     MessageRouter::MessageRouter(const TopicConfig &config) : config_(config) {
-        SPDLOG_DEBUG("MessageRouter created with snapshot_prefix={}, cdc_topic={}, partitions={}",
-                     config_.snapshot_topic_prefix, config_.cdc_topic, config_.num_partitions);
+        SPDLOG_DEBUG("MessageRouter created with snapshot_prefix={}, partitions={}",
+                     config_.snapshot_topic_prefix, config_.num_partitions);
     }
 
     MessageRouter::MessageRouter() : config_() {
@@ -217,27 +204,26 @@ namespace market_depth {
 
     KafkaMessage MessageRouter::route_snapshot(const std::string &symbol, uint32_t depth,
                                                const std::string &json_payload) const {
+        // New format: market_depth.[SYMBOL_NAME]
         std::string topic = config_.snapshot_topic_prefix + symbol;
-        SPDLOG_INFO("MessageRouter::route_snapshot: topic={}", topic);
-        // if (config_.use_depth_in_topic) {
-        //     topic = config_.snapshot_topic_prefix + std::to_string(depth);
-        // } else {
-        //     topic = config_.snapshot_topic_prefix.substr(0, config_.snapshot_topic_prefix.length() - 1);
-        //     // Remove trailing _
-        // }
 
-        uint32_t partition = config_.use_symbol_partitioning ? calculate_partition(symbol) : static_cast<uint32_t>(-1);
+        uint32_t partition = config_.use_symbol_partitioning ? calculate_partition(symbol) : 0;
+
+        SPDLOG_TRACE("Routing snapshot for symbol {} to topic {} partition {}", symbol, topic, partition);
 
         return KafkaMessage(topic, symbol, json_payload, partition);
     }
 
     KafkaMessage MessageRouter::route_cdc(const std::string &symbol,
                                           const std::string &json_payload) const {
-        uint32_t partition = config_.use_symbol_partitioning ? calculate_partition(symbol) : static_cast<uint32_t>(-1);
+        // CDC routing disabled but kept for interface compatibility
+        SPDLOG_WARN("CDC routing disabled in simplified processor");
+        uint32_t partition = config_.use_symbol_partitioning ? calculate_partition(symbol) : 0;
         return KafkaMessage(config_.cdc_topic, symbol, json_payload, partition);
     }
 
     uint32_t MessageRouter::calculate_partition(const std::string &symbol) const {
         return hasher_(symbol) % config_.num_partitions;
     }
+
 } // namespace market_depth
