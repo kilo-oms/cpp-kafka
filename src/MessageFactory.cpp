@@ -217,13 +217,14 @@ namespace market_depth {
 
     KafkaMessage MessageRouter::route_snapshot(const std::string &symbol, uint32_t depth,
                                                const std::string &json_payload) const {
-        std::string topic;
-        if (config_.use_depth_in_topic) {
-            topic = config_.snapshot_topic_prefix + std::to_string(depth);
-        } else {
-            topic = config_.snapshot_topic_prefix.substr(0, config_.snapshot_topic_prefix.length() - 1);
-            // Remove trailing _
-        }
+        std::string topic = config_.snapshot_topic_prefix + symbol;
+        SPDLOG_INFO("MessageRouter::route_snapshot: topic={}", topic);
+        // if (config_.use_depth_in_topic) {
+        //     topic = config_.snapshot_topic_prefix + std::to_string(depth);
+        // } else {
+        //     topic = config_.snapshot_topic_prefix.substr(0, config_.snapshot_topic_prefix.length() - 1);
+        //     // Remove trailing _
+        // }
 
         uint32_t partition = config_.use_symbol_partitioning ? calculate_partition(symbol) : static_cast<uint32_t>(-1);
 

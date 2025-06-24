@@ -68,7 +68,7 @@ json_config:
 
 # Kafka topic routing configuration
 topic_config:
-  snapshot_prefix: "market_depth_snapshot_"  # Prefix for snapshot topics
+  snapshot_prefix: "market_depth."  # Prefix for snapshot topics
   cdc_topic: "market_depth_cdc"             # Topic for CDC events
   use_depth_in_topic: true                  # Include depth in topic name
   use_symbol_partitioning: true             # Use symbol-based partitioning

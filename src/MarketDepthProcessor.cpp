@@ -209,7 +209,9 @@ namespace market_depth {
             if (success && config_.depth_config.enable_snapshots) {
                 // Get the updated order book snapshot
                 if (snapshot->symbol()) {
+                    SPDLOG_INFO("Market depth processing succeeded: {}", snapshot->symbol()->str());
                     std::string symbol = snapshot->symbol()->str();
+                    // publish_snapshots(snapshot);
                     OrderBook *orderbook = orderbook_manager_->get_or_create_orderbook(symbol);
 
                     if (orderbook && orderbook->is_initialized()) {

@@ -17,7 +17,7 @@
 #ifndef MARKET_DEPTH_PROCESSOR_HPP_
 #define MARKET_DEPTH_PROCESSOR_HPP_
 
-#include "OrderBook.hpp"
+// #include "OrderBook.hpp"
 #include "MessageFactory.hpp"
 #include "KafkaConsumer.hpp"
 #include "KafkaProducer.hpp"
@@ -194,7 +194,7 @@ private:
     ProcessorConfig config_;
 
     // Core components
-    std::unique_ptr<OrderBookManager> orderbook_manager_;
+    // std::unique_ptr<OrderBookManager> orderbook_manager_;
     std::unique_ptr<MessageFactory> message_factory_;
     std::unique_ptr<MessageRouter> message_router_;
 

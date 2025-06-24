@@ -1,6 +1,8 @@
 # Object file compilation
 $(OBJDIR)/%.o: $(SRCDIR)/%.cpp | $(OBJDIR) $(FLATBUF_GENERATED) $(FLATBUF_FORMATTER)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -c -o $@ $CXX = g++
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c -o $@ $<
+
+CXX = g++
 CXXFLAGS = -std=c++17 -Wall -O2 -pthread -DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE
 
 # Detect OS (Darwin = macOS)
@@ -12,6 +14,8 @@ ifeq ($(UNAME_S),Darwin)
     KAFKA_LIB     = -L/opt/homebrew/lib
     FLATBUF_INCLUDE = -I/opt/homebrew/include
     FLATBUF_LIB     = -L/opt/homebrew/lib
+    JSON_INCLUDE = -I/opt/homebrew/include
+    JSON_LIB     = -L/opt/homebrew/lib
 else
     YAML_INCLUDE = -I/usr/local/include
     YAML_LIB     = -L/usr/local/lib
@@ -19,12 +23,15 @@ else
     KAFKA_LIB     = -L/usr/local/lib
     FLATBUF_INCLUDE = -I/usr/local/include
     FLATBUF_LIB     = -L/usr/local/lib
+    JSON_INCLUDE = -I/usr/local/include
+    JSON_LIB     = -L/usr/local/lib
 endif
 
-INCLUDES = -I./include $(YAML_INCLUDE) $(KAFKA_INCLUDE) $(FLATBUF_INCLUDE)
-LIBS     = $(YAML_LIB) $(KAFKA_LIB) $(FLATBUF_LIB) -lyaml-cpp -lrdkafka -lflatbuffers -lpthread
+INCLUDES = -I./include $(YAML_INCLUDE) $(KAFKA_INCLUDE) $(FLATBUF_INCLUDE) $(JSON_INCLUDE)
+LIBS     = $(YAML_LIB) $(KAFKA_LIB) $(FLATBUF_LIB) $(JSON_LIB) -lyaml-cpp -lrdkafka -lflatbuffers -lnlohmann_json -lpthread
 
 TARGET = market_depth_processor
+REALTIME_TARGET = market_depth_realtime_processor
 
 SRCDIR = ./src
 OBJDIR = ./obj
@@ -41,14 +48,22 @@ SOURCES = main.cpp \
           OrderBook.cpp \
           OrderBookTypes.cpp
 
+REALTIME_SOURCES = main-realtime.cpp \
+                   RealtimeRealtimeMarketDepthProcessor.cpp \
+                   KafkaConsumer.cpp \
+                   KafkaProducer.cpp
+
 OBJS = $(patsubst %.cpp,$(OBJDIR)/%.o,$(SOURCES))
+REALTIME_OBJS = $(patsubst %.cpp,$(OBJDIR)/%.o,$(REALTIME_SOURCES))
 
 # FlatBuffers schema file
 FLATBUF_SCHEMA = $(FLATBUFDIR)/orderbook.fbs
 FLATBUF_GENERATED = ./include/orderbook_generated.h
 FLATBUF_FORMATTER = ./include/FlatBuffersFormatter.hpp
 
-all: $(BINDIR)/$(TARGET)
+all: $(BINDIR)/$(TARGET) $(BINDIR)/$(REALTIME_TARGET)
+
+realtime: $(BINDIR)/$(REALTIME_TARGET)
 
 # Generate FlatBuffers headers if schema exists
 $(FLATBUF_GENERATED): $(FLATBUF_SCHEMA)
@@ -61,8 +76,11 @@ $(FLATBUF_FORMATTER): $(FLATBUF_GENERATED)
 		echo "Please create $(FLATBUF_FORMATTER) with custom formatters for your FlatBuffers types"; \
 	fi
 
-# Main target
+# Main targets
 $(BINDIR)/$(TARGET): $(OBJS) | $(BINDIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $^ $(LIBS)
+
+$(BINDIR)/$(REALTIME_TARGET): $(REALTIME_OBJS) | $(BINDIR)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $^ $(LIBS)
 
 # Object file compilation
@@ -78,12 +96,23 @@ $(BINDIR):
 
 # Dependencies for header files based on actual structure
 $(OBJDIR)/main.o: $(SRCDIR)/main.cpp \
-                  ./include/MarketDepthProcessor.hpp \
+                  ./include/RealtimeMarketDepthProcessor.hpp \
                   ./include/KafkaConsumer.hpp \
                   ./include/KafkaProducer.hpp \
 
-$(OBJDIR)/MarketDepthProcessor.o: $(SRCDIR)/MarketDepthProcessor.cpp \
-                                  ./include/MarketDepthProcessor.hpp \
+$(OBJDIR)/main-realtime.o: $(SRCDIR)/main-realtime.cpp \
+                           ./include/RealtimeMarketDepthProcessor.hpp \
+                           ./include/KafkaConsumer.hpp \
+                           ./include/KafkaProducer.hpp \
+
+$(OBJDIR)/RealtimeRealtimeMarketDepthProcessor.o: $(SRCDIR)/RealtimeRealtimeMarketDepthProcessor.cpp \
+                                          ./include/RealtimeRealtimeMarketDepthProcessor.hpp \
+                                          ./include/KafkaConsumer.hpp \
+                                          ./include/KafkaProducer.hpp \
+                                          ./include/orderbook_generated.h \
+
+$(OBJDIR)/RealtimeMarketDepthProcessor.o: $(SRCDIR)/RealtimeMarketDepthProcessor.cpp \
+                                  ./include/RealtimeMarketDepthProcessor.hpp \
                                   ./include/OrderBook.hpp \
                                   ./include/MessageFactory.hpp \
                                   ./include/orderbook_generated.h \
@@ -113,21 +142,28 @@ python-gen: $(FLATBUF_SCHEMA)
 	flatc --python -o ./python_generated $(FLATBUF_SCHEMA)
 
 # Utility targets
-install: $(BINDIR)/$(TARGET)
+install: $(BINDIR)/$(TARGET) $(BINDIR)/$(REALTIME_TARGET)
 	cp $(BINDIR)/$(TARGET) /usr/local/bin/
+	cp $(BINDIR)/$(REALTIME_TARGET) /usr/local/bin/
 
 run: $(BINDIR)/$(TARGET)
 	$(BINDIR)/$(TARGET) $(CONFIGDIR)/config.yaml
 
+run-realtime: $(BINDIR)/$(REALTIME_TARGET)
+	$(BINDIR)/$(REALTIME_TARGET) $(CONFIGDIR)/config-realtime.yaml
+
 run-debug: $(BINDIR)/$(TARGET)
 	gdb --args $(BINDIR)/$(TARGET) $(CONFIGDIR)/config.yaml
 
+run-realtime-debug: $(BINDIR)/$(REALTIME_TARGET)
+	gdb --args $(BINDIR)/$(REALTIME_TARGET) $(CONFIGDIR)/config-realtime.yaml
+
 # Build modes
 debug: CXXFLAGS += -DDEBUG -g -O0
-debug: clean $(BINDIR)/$(TARGET)
+debug: clean $(BINDIR)/$(TARGET) $(BINDIR)/$(REALTIME_TARGET)
 
 release: CXXFLAGS += -DNDEBUG -O3
-release: clean $(BINDIR)/$(TARGET)
+release: clean $(BINDIR)/$(TARGET) $(BINDIR)/$(REALTIME_TARGET)
 
 # Development utilities
 check-deps: check_deps.cpp
@@ -149,7 +185,7 @@ docker-run: docker-build
 
 # Clean targets
 clean:
-	rm -f $(OBJDIR)/*.o $(BINDIR)/$(TARGET)
+	rm -f $(OBJDIR)/*.o $(BINDIR)/$(TARGET) $(BINDIR)/$(REALTIME_TARGET)
 	rm -f check_deps
 
 clean-generated:
@@ -167,12 +203,15 @@ rebuild: distclean generate all
 
 help:
 	@echo "Available targets:"
-	@echo "  all          - Build main application (default)"
+	@echo "  all          - Build main application and realtime processor (default)"
+	@echo "  realtime     - Build only realtime processor"
 	@echo "  debug        - Build with debug symbols"
 	@echo "  release      - Build optimized release version"
 	@echo "  install      - Install to /usr/local/bin"
 	@echo "  run          - Build and run with config/config.yaml"
+	@echo "  run-realtime - Build and run realtime processor with config/config-realtime.yaml"
 	@echo "  run-debug    - Run with gdb debugger"
+	@echo "  run-realtime-debug - Run realtime processor with gdb debugger"
 	@echo "  check-deps   - Check system dependencies"
 	@echo "  format       - Format code with clang-format"
 	@echo "  lint         - Run cppcheck static analysis"
@@ -186,4 +225,4 @@ help:
 	@echo "  rebuild      - Full clean rebuild with code generation"
 	@echo "  help         - Show this help message"
 
-.PHONY: all debug release install run run-debug check-deps format lint generate python-gen docker-build docker-run clean clean-generated distclean rebuild help
+.PHONY: all realtime debug release install run run-realtime run-debug run-realtime-debug check-deps format lint generate python-gen docker-build docker-run clean clean-generated distclean rebuild help

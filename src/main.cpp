@@ -287,7 +287,7 @@ int main(int argc, char *argv[]) {
 
     // Setup logging
     spdlog::level::level_enum log_level = parse_log_level(log_level_str);
-    auto logger = setup_logger(log_level, log_folder);
+    // auto logger = setup_logger(log_level, log_folder);
     SPDLOG_INFO("Market Depth Processor starting...");
     SPDLOG_INFO("Config: {}, Log level: {}, Max runtime: {}s", config_path, log_level_str, max_runtime_s);
 
