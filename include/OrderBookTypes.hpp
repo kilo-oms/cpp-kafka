@@ -1,14 +1,14 @@
 /**
  * @file    OrderBookTypes.hpp
- * @brief   Core data types and structures for market depth processing
+ * @brief   Simplified core data types for market depth processing
  *
  * Developer: Equix Technologies
  * Copyright: Equix Technologies Pty Ltd
  * Created: June 2025
  *
  * Description:
- *   Defines core data structures for order book management, market depth levels,
- *   and CDC (Change Data Capture) events for high-frequency trading systems.
+ *   Defines simplified core data structures for market depth levels.
+ *   CDC functionality is disabled in this version.
  */
 
 #pragma once
@@ -33,7 +33,7 @@ enum class OrderSide : uint8_t {
 };
 
 /**
- * @brief CDC event types for change tracking
+ * @brief CDC event types (kept for compatibility but not used)
  */
 enum class CDCEventType : uint8_t {
     LevelAdded = 0,
@@ -59,7 +59,7 @@ struct PriceLevel {
 };
 
 /**
- * @brief CDC event for tracking order book changes
+ * @brief CDC event (kept for compatibility but not used in simplified version)
  */
 struct CDCEvent {
     std::string symbol;
@@ -73,27 +73,15 @@ struct CDCEvent {
 };
 
 /**
- * @brief Market depth configuration
- */
-struct DepthConfig {
-    std::vector<uint32_t> depth_levels;
-    bool enable_cdc;
-    bool enable_snapshots;
-    uint32_t max_price_levels;
-
-    DepthConfig();
-};
-
-/**
- * @brief Internal order book snapshot
+ * @brief Simplified internal order book snapshot
  */
 struct InternalOrderBookSnapshot {
     std::string symbol;
     uint64_t sequence;
     uint64_t timestamp;
 
-    std::map<uint64_t, PriceLevel, std::greater<uint64_t>> bid_levels;
-    std::map<uint64_t, PriceLevel> ask_levels;
+    std::map<uint64_t, PriceLevel, std::greater<uint64_t>> bid_levels;  // Bids: highest to lowest
+    std::map<uint64_t, PriceLevel> ask_levels;                          // Asks: lowest to highest
 
     uint64_t last_trade_price;
     uint64_t last_trade_quantity;
@@ -105,34 +93,6 @@ struct InternalOrderBookSnapshot {
     bool has_sufficient_depth(uint32_t min_levels = 1) const;
 };
 
-/**
- * @brief Statistics for monitoring system performance
- */
-struct ProcessingStats {
-    uint64_t messages_processed = 0;
-    uint64_t cdc_events_generated = 0;
-    uint64_t snapshots_published = 0;
-    uint64_t processing_errors = 0;
-    uint64_t last_sequence_processed = 0;
-
-    // Per-symbol stats
-    std::unordered_map<std::string, uint64_t> symbol_message_counts;
-    std::unordered_map<std::string, uint64_t> symbol_last_sequence;
-
-    void increment_processed(const std::string& symbol, uint64_t sequence = 0) {
-        ++messages_processed;
-        ++symbol_message_counts[symbol];
-        if (sequence > 0) {
-            symbol_last_sequence[symbol] = sequence;
-            last_sequence_processed = std::max(last_sequence_processed, sequence);
-        }
-    }
-
-    void increment_cdc_events() { ++cdc_events_generated; }
-    void increment_snapshots() { ++snapshots_published; }
-    void increment_errors() { ++processing_errors; }
-};
-
-} // namespace md
+} // namespace market_depth
 
 #endif /* ORDER_BOOK_TYPES_HPP_ */

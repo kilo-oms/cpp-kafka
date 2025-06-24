@@ -74,7 +74,7 @@ std::string get_log_filename(const std::string &log_folder) {
     auto now = std::chrono::system_clock::now();
     std::time_t t = std::chrono::system_clock::to_time_t(now);
     std::ostringstream ss;
-    ss << log_folder << "/simplified_market_depth_";
+    ss << log_folder << "/market_depth_";
     ss << std::put_time(std::localtime(&t), "%Y_%m_%d") << ".log";
     return ss.str();
 }
@@ -94,7 +94,7 @@ std::shared_ptr<spdlog::logger> setup_logger(
     size_t max_files = 50;
 
     std::string filename = get_log_filename(log_folder);
-    auto logger = spdlog::rotating_logger_mt("simplified_market_depth_logger", filename, max_file_size, max_files);
+    auto logger = spdlog::rotating_logger_mt("market_depth_logger", filename, max_file_size, max_files);
 
     // Enhanced log pattern with thread ID and microsecond precision
     logger->set_pattern("[%Y-%m-%d %H:%M:%S.%f][%t][%l][%s:%#][%!] %v");

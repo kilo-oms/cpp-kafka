@@ -1,6 +1,6 @@
 /**
  * @file    MessageFactory.hpp
- * @brief   JSON message factory for market depth data
+ * @brief   Simplified JSON message factory for market depth data
  *
  * Developer: Equix Technologies
  * Copyright: Equix Technologies Pty Ltd
@@ -8,8 +8,8 @@
  *
  * Description:
  *   Converts internal order book structures to JSON format for downstream
- *   consumers. Supports both full snapshots and CDC events with configurable
- *   depth levels and formatting options.
+ *   consumers. Supports snapshots with configurable depth levels and formatting options.
+ *   CDC functionality is disabled in this simplified version.
  */
 
 #pragma once
@@ -22,6 +22,8 @@
 #include <string>
 #include <sstream>
 #include <iomanip>
+#include <map>
+#include <functional>
 
 namespace market_depth {
 
@@ -48,7 +50,7 @@ public:
     MessageFactory();
 
     std::string create_snapshot_json(const InternalOrderBookSnapshot& snapshot, uint32_t depth) const;
-    std::string create_cdc_json(const CDCEvent& event) const;
+    std::string create_cdc_json(const CDCEvent& event) const;  // Kept for compatibility but disabled
     std::map<uint32_t, std::string> create_multi_depth_json(
         const InternalOrderBookSnapshot& snapshot,
         const std::vector<uint32_t>& depth_levels) const;

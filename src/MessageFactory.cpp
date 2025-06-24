@@ -36,7 +36,7 @@ namespace market_depth {
         // Add common fields
         add_common_fields(j, snapshot.symbol, snapshot.sequence, snapshot.timestamp);
 
-        j["message_type"] = "snapshot";
+        // j["message_type"] = "snapshot";
         j["depth"] = depth;
 
         // Add bid side (top depth levels)
@@ -150,20 +150,20 @@ namespace market_depth {
             j["sequence"] = sequence;
         }
 
-        if (config_.include_timestamp) {
-            j["timestamp"] = timestamp;
+        // if (config_.include_timestamp) {
+            // j["timestamp"] = timestamp;
 
             // Also add human-readable timestamp
-            auto timestamp_ms = timestamp / 1000;
-            auto time_point = std::chrono::system_clock::from_time_t(timestamp_ms / 1000);
-            auto ms_part = timestamp_ms % 1000;
+            // auto timestamp_ms = timestamp / 1000;
+            // auto time_point = std::chrono::system_clock::from_time_t(timestamp_ms / 1000);
+            // auto ms_part = timestamp_ms % 1000;
 
-            std::time_t tt = std::chrono::system_clock::to_time_t(time_point);
-            std::ostringstream ss;
-            ss << std::put_time(std::gmtime(&tt), "%Y-%m-%dT%H:%M:%S");
-            ss << "." << std::setfill('0') << std::setw(3) << ms_part << "Z";
-            j["timestamp_iso"] = ss.str();
-        }
+            // std::time_t tt = std::chrono::system_clock::to_time_t(time_point);
+            // std::ostringstream ss;
+            // ss << std::put_time(std::gmtime(&tt), "%Y-%m-%dT%H:%M:%S");
+            // ss << "." << std::setfill('0') << std::setw(3) << ms_part << "Z";
+            // j["timestamp_iso"] = ss.str();
+        // }
     }
 
     std::string MessageFactory::side_to_string(OrderSide side) {

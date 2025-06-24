@@ -192,7 +192,7 @@ namespace market_depth {
 
             // Check message type
             if (envelope->msg_type() != fb::BookMsg_OrderBookSnapshot) {
-                SPDLOG_DEBUG("Ignoring non-snapshot message type: {}", envelope->msg_type());
+                SPDLOG_DEBUG("Ignoring non-snapshot message type: {}", static_cast<int>(envelope->msg_type()));
                 return true; // Not an error, just not what we're looking for
             }
 
@@ -340,7 +340,20 @@ namespace market_depth {
 
     PerformanceMetrics MarketDepthProcessor::get_metrics() const {
         std::lock_guard lock(metrics_mutex_);
-        return metrics_;
+        // Create a copy with current atomic values
+        PerformanceMetrics copy;
+        copy.messages_consumed = metrics_.messages_consumed.load();
+        copy.messages_processed = metrics_.messages_processed.load();
+        copy.messages_published = metrics_.messages_published.load();
+        copy.processing_errors = metrics_.processing_errors.load();
+        copy.kafka_errors = metrics_.kafka_errors.load();
+        copy.total_processing_time_us = metrics_.total_processing_time_us.load();
+        copy.max_processing_time_us = metrics_.max_processing_time_us.load();
+        copy.min_processing_time_us = metrics_.min_processing_time_us.load();
+        copy.start_time = metrics_.start_time;
+        copy.last_stats_time = metrics_.last_stats_time;
+        // Note: symbol_message_counts is complex to copy safely, skip for now
+        return copy;
     }
 
     void MarketDepthProcessor::print_statistics() const {

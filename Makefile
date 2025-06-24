@@ -11,7 +11,6 @@ ifeq ($(UNAME_S),Darwin)
     FLATBUF_INCLUDE = -I/opt/homebrew/include
     FLATBUF_LIB     = -L/opt/homebrew/lib
     JSON_INCLUDE = -I/opt/homebrew/include
-    JSON_LIB     = -L/opt/homebrew/lib
 else
     YAML_INCLUDE = -I/usr/local/include
     YAML_LIB     = -L/usr/local/lib
@@ -20,13 +19,12 @@ else
     FLATBUF_INCLUDE = -I/usr/local/include
     FLATBUF_LIB     = -L/usr/local/lib
     JSON_INCLUDE = -I/usr/local/include
-    JSON_LIB     = -L/usr/local/lib
 endif
 
 INCLUDES = -I./include $(YAML_INCLUDE) $(KAFKA_INCLUDE) $(FLATBUF_INCLUDE) $(JSON_INCLUDE)
-LIBS     = $(YAML_LIB) $(KAFKA_LIB) $(FLATBUF_LIB) $(JSON_LIB) -lyaml-cpp -lrdkafka -lflatbuffers -lpthread
+LIBS     = $(YAML_LIB) $(KAFKA_LIB) $(FLATBUF_LIB) -lyaml-cpp -lrdkafka -lflatbuffers -lpthread
 
-TARGET = simplified_market_depth_processor
+TARGET = market_depth_processor
 
 SRCDIR = ./src
 OBJDIR = ./obj

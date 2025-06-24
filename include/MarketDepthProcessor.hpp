@@ -27,6 +27,8 @@
 #include <chrono>
 #include <memory>
 #include <vector>
+#include <unordered_map>
+#include <mutex>
 
 namespace market_depth {
 
@@ -81,6 +83,41 @@ struct PerformanceMetrics {
     std::chrono::high_resolution_clock::time_point start_time;
     std::chrono::high_resolution_clock::time_point last_stats_time;
 
+    // Copy constructor
+    PerformanceMetrics(const PerformanceMetrics& other)
+        : messages_consumed(other.messages_consumed.load())
+        , messages_processed(other.messages_processed.load())
+        , messages_published(other.messages_published.load())
+        , processing_errors(other.processing_errors.load())
+        , kafka_errors(other.kafka_errors.load())
+        , total_processing_time_us(other.total_processing_time_us.load())
+        , max_processing_time_us(other.max_processing_time_us.load())
+        , min_processing_time_us(other.min_processing_time_us.load())
+        , start_time(other.start_time)
+        , last_stats_time(other.last_stats_time) {
+        // Note: symbol_message_counts copying is complex with atomics, skip for now
+    }
+
+    // Assignment operator
+    PerformanceMetrics& operator=(const PerformanceMetrics& other) {
+        if (this != &other) {
+            messages_consumed = other.messages_consumed.load();
+            messages_processed = other.messages_processed.load();
+            messages_published = other.messages_published.load();
+            processing_errors = other.processing_errors.load();
+            kafka_errors = other.kafka_errors.load();
+            total_processing_time_us = other.total_processing_time_us.load();
+            max_processing_time_us = other.max_processing_time_us.load();
+            min_processing_time_us = other.min_processing_time_us.load();
+            start_time = other.start_time;
+            last_stats_time = other.last_stats_time;
+        }
+        return *this;
+    }
+
+    // Default constructor
+    PerformanceMetrics() = default;
+
     void reset() {
         messages_consumed = 0;
         messages_processed = 0;
@@ -131,7 +168,7 @@ public:
     void stop_processing();
 
     /**
-     * @brief Get current performance metrics
+     * @brief Get current performance metrics (returns copy with current values)
      */
     PerformanceMetrics get_metrics() const;
 

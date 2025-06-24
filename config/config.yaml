@@ -5,7 +5,7 @@
 global:
   log_level: info                    # trace, debug, info, warn, error, critical, off
   log_path: ./app/logs               # Log file directory
-  application_name: "simplified_market_depth_processor"
+  application_name: "market_depth_processor"
   version: "1.0.0"
 
 # Kafka cluster configuration for both producer and consumer
