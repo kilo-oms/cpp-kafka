@@ -11,6 +11,7 @@ RUN apt -o Acquire::AllowInsecureRepositories=true  update && apt install -y --n
     librdkafka-dev \
     ca-certificates \
     curl \
+    git \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
@@ -45,6 +46,7 @@ RUN apt -o Acquire::AllowInsecureRepositories=true update && apt install -y --no
     libyaml-cpp-dev \
     librdkafka-dev \
     ca-certificates \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 
