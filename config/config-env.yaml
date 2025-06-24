@@ -1,0 +1,41 @@
+
+# Environment-specific overrides
+# These can be overridden by environment variables or separate config files
+environments:
+  development:
+    kafka_cluster:
+      bootstrap_servers: "localhost:29092"
+    global:
+      log_level: debug
+    development:
+      enable_debug_logging: true
+      log_message_payloads: true
+
+  testing:
+    kafka_cluster:
+      bootstrap_servers: "kafka-test:9092"
+    processor:
+      stats_interval_s: 5
+    development:
+      enable_profiling: true
+
+  staging:
+    kafka_cluster:
+      bootstrap_servers: "kafka-staging:9092"
+    global:
+      log_level: info
+    monitoring:
+      enable_metrics: true
+
+  production:
+    kafka_cluster:
+      bootstrap_servers: "kafka-prod-1:9092,kafka-prod-2:9092,kafka-prod-3:9092"
+    global:
+      log_level: warn
+    performance:
+      cpu_affinity: [2, 3, 4, 5]  # Bind to specific CPU cores
+      thread_priority: -5          # Higher priority for production
+    reliability:
+      enable_circuit_breaker: true
+    security:
+      enable_ssl: true

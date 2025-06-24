@@ -67,7 +67,7 @@ struct CDCEvent {
     CDCEventType event_type;
     PriceLevel level;
     uint64_t sequence;
-    uint64_t timestamp_us;
+    uint64_t timestamp;
 
     CDCEvent();
 };
@@ -90,7 +90,7 @@ struct DepthConfig {
 struct InternalOrderBookSnapshot {
     std::string symbol;
     uint64_t sequence;
-    uint64_t timestamp_us;
+    uint64_t timestamp;
 
     std::map<uint64_t, PriceLevel, std::greater<uint64_t>> bid_levels;
     std::map<uint64_t, PriceLevel> ask_levels;

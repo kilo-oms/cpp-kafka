@@ -30,7 +30,9 @@ if(NOT spdlog_FOUND)
     # Check if we have bundled spdlog in include/
     if(EXISTS "${CMAKE_SOURCE_DIR}/include/spdlog/spdlog.h")
         message(STATUS "Using bundled spdlog from include/spdlog")
-        add_library(spdlog::spdlog INTERFACE IMPORTED)
+        add_library(spdlog::spdlog INTERFACE IMPORTED
+                src/OrderBookTypes.cpp
+                include/FlatBuffersFormatter.hpp)
         target_include_directories(spdlog::spdlog INTERFACE ${CMAKE_SOURCE_DIR}/include)
         target_compile_definitions(spdlog::spdlog INTERFACE SPDLOG_HEADER_ONLY)
     else()
@@ -40,7 +42,9 @@ if(NOT spdlog_FOUND)
         )
         if(SPDLOG_INCLUDE_DIR)
             message(STATUS "Found spdlog manually: ${SPDLOG_INCLUDE_DIR}")
-            add_library(spdlog::spdlog INTERFACE IMPORTED)
+            add_library(spdlog::spdlog INTERFACE IMPORTED
+                    src/OrderBookTypes.cpp
+                    include/FlatBuffersFormatter.hpp)
             target_include_directories(spdlog::spdlog INTERFACE ${SPDLOG_INCLUDE_DIR})
             target_compile_definitions(spdlog::spdlog INTERFACE SPDLOG_HEADER_ONLY)
         else()
@@ -58,7 +62,9 @@ if(NOT nlohmann_json_FOUND)
     )
     if(NLOHMANN_JSON_INCLUDE_DIR)
         message(STATUS "Found nlohmann-json manually: ${NLOHMANN_JSON_INCLUDE_DIR}")
-        add_library(nlohmann_json::nlohmann_json INTERFACE IMPORTED)
+        add_library(nlohmann_json::nlohmann_json INTERFACE IMPORTED
+                src/OrderBookTypes.cpp
+                include/FlatBuffersFormatter.hpp)
         target_include_directories(nlohmann_json::nlohmann_json INTERFACE ${NLOHMANN_JSON_INCLUDE_DIR})
     else()
         message(FATAL_ERROR "nlohmann-json not found. Please install it or run ./fix_dependencies.sh")
@@ -77,7 +83,9 @@ if(NOT Flatbuffers_FOUND)
     )
     if(FLATBUFFERS_INCLUDE_DIR AND FLATBUFFERS_LIBRARY)
         message(STATUS "Found flatbuffers manually: ${FLATBUFFERS_INCLUDE_DIR}")
-        add_library(flatbuffers::flatbuffers UNKNOWN IMPORTED)
+        add_library(flatbuffers::flatbuffers UNKNOWN IMPORTED
+                src/OrderBookTypes.cpp
+                include/FlatBuffersFormatter.hpp)
         set_target_properties(flatbuffers::flatbuffers PROPERTIES
                 IMPORTED_LOCATION ${FLATBUFFERS_LIBRARY}
                 INTERFACE_INCLUDE_DIRECTORIES ${FLATBUFFERS_INCLUDE_DIR}
@@ -102,9 +110,12 @@ set(MAIN_SRC_FILES
         src/main.cpp
         src/KafkaConsumer.cpp
         src/KafkaProducer.cpp
+        src/OrderBookTypes.cpp
         src/OrderBook.cpp
         src/MessageFactory.cpp
         src/MarketDepthProcessor.cpp
+        src/OrderBookTypes.cpp
+        include/FlatBuffersFormatter.hpp
 )
 
 # Header files (for IDE support)
@@ -117,11 +128,14 @@ set(HEADER_FILES
         include/MessageFactory.hpp
         include/MarketDepthProcessor.hpp
         include/orderbook_generated.h
-        check_deps.cpp
+        src/OrderBookTypes.cpp
+        include/FlatBuffersFormatter.hpp
 )
 
 # Create main executable
-add_executable(market_depth_processor ${MAIN_SRC_FILES} ${HEADER_FILES})
+add_executable(market_depth_processor ${MAIN_SRC_FILES} ${HEADER_FILES}
+        src/OrderBookTypes.cpp
+        include/FlatBuffersFormatter.hpp)
 
 # Set target properties
 set_target_properties(market_depth_processor PROPERTIES

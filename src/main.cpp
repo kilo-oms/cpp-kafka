@@ -1,15 +1,6 @@
 /**
  * @file    main.cpp
  * @brief   Market Depth Processor - Main Entry Point
- *
- * Developer: Equix Technologies
- * Copyright: Equix Technologies Pty Ltd
- * Created: June 2025
- *
- * Description:
- *   Main entry point for the market depth processing system. Handles configuration
- *   loading, logging setup, and orchestrates the high-frequency market data pipeline
- *   from Kafka input through order book management to JSON output publishing.
  */
 
 #include <iostream>
@@ -39,13 +30,13 @@
 void print_banner() {
     std::cout << R"(
 ╔══════════════════════════════════════════════════════════════╗
-║               CBOE Market Depth Processor v1.0              ║
-║                   Equix Technologies Pty Ltd                ║
+║               CBOE Market Depth Processor v1.0               ║
+║                   Equix Technologies Pty Ltd                 ║
 ╠══════════════════════════════════════════════════════════════╣
-║  High-frequency market data processing system               ║
-║  Input: CBOE L2 snapshots (FlatBuffers via Kafka)          ║
-║  Output: Multi-depth JSON snapshots + CDC events           ║
-║  Target: 10,000+ msg/s across 200,000+ symbols             ║
+║  High-frequency market data processing system                ║
+║  Input: CBOE L2 snapshots (FlatBuffers via Kafka)            ║
+║  Output: Multi-depth JSON snapshots + CDC events             ║
+║  Target: 10,000+ msg/s across 200,000+ symbols               ║
 ╚══════════════════════════════════════════════════════════════╝
 )" << std::endl;
 }
@@ -165,9 +156,9 @@ std::vector<uint32_t> parse_depth_levels(const std::string& depth_str) {
 /**
  * @brief Load processor configuration from YAML and command line
  */
-md::ProcessorConfig load_processor_config(const std::string& config_path,
+market_depth::ProcessorConfig load_processor_config(const std::string& config_path,
                                          const std::map<std::string, std::string>& cli_overrides) {
-    md::ProcessorConfig config;
+    market_depth::ProcessorConfig config;
 
     try {
         YAML::Node yaml_config = YAML::LoadFile(config_path);
@@ -251,7 +242,6 @@ int main(int argc, char *argv[]) {
     std::string log_folder = "/tmp";
     uint32_t max_runtime_s = 0;
     std::map<std::string, std::string> cli_overrides;
-
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
 
@@ -298,7 +288,6 @@ int main(int argc, char *argv[]) {
     // Setup logging
     spdlog::level::level_enum log_level = parse_log_level(log_level_str);
     auto logger = setup_logger(log_level, log_folder);
-
     SPDLOG_INFO("Market Depth Processor starting...");
     SPDLOG_INFO("Config: {}, Log level: {}, Max runtime: {}s", config_path, log_level_str, max_runtime_s);
 
@@ -320,15 +309,12 @@ int main(int argc, char *argv[]) {
                    config.depth_config.enable_snapshots);
 
         // Create and initialize processor
-        md::MarketDepthProcessor processor(config);
+        market_depth::MarketDepthProcessor processor(config);
 
         if (!processor.initialize()) {
             SPDLOG_ERROR("Failed to initialize processor");
             return 1;
         }
-
-        // Setup graceful shutdown handling
-        md::ProcessorShutdownHandler shutdown_handler(processor);
 
         // Start processing (blocking call)
         processor.start_processing(max_runtime_s);

@@ -191,7 +191,7 @@ Multi-depth snapshots are published in JSON format:
 {
   "symbol": "AAPL",
   "sequence": 12345,
-  "timestamp_us": 1640995200000000,
+  "timestamp": 1640995200000000,
   "timestamp_iso": "2022-01-01T00:00:00.000Z",
   "message_type": "snapshot",
   "depth": 5,
@@ -232,7 +232,7 @@ Change events are published for real-time order book updates:
 {
   "symbol": "AAPL",
   "sequence": 12346,
-  "timestamp_us": 1640995200001000,
+  "timestamp": 1640995200001000,
   "message_type": "cdc",
   "event_type": "level_modified",
   "side": "bid",

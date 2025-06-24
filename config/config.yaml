@@ -4,20 +4,20 @@
 # Global application settings
 global:
   log_level: info                    # trace, debug, info, warn, error, critical, off
-  log_path: /app/logs               # Log file directory
+  log_path: ./app/logs               # Log file directory
   application_name: "market_depth_processor"
   version: "1.0.0"
 
 # Kafka cluster configuration for both producer and consumer
 kafka_cluster:
-  bootstrap_servers: "localhost:29092,localhost:29093,localhost:29094"
+  bootstrap_servers: "localhost:29092"
   compression: "lz4"                # none, gzip, snappy, lz4, zstd
   acks: "1"                        # 0, 1, all
   queue_buffering_max_messages: 1000000
   batch_num_messages: 10000
   linger_ms: 5
   topics:
-    - market_depth_input
+    - ORDERBOOK
     - market_depth_snapshot_5
     - market_depth_snapshot_10
     - market_depth_snapshot_25
@@ -26,7 +26,7 @@ kafka_cluster:
 
 # Kafka consumer specific settings
 kafka_consumer:
-  bootstrap_servers: "localhost:29092,localhost:29093,localhost:29094"
+  bootstrap_servers: "localhost:29092"
   group_id: "market-depth-processor-group"
   session_timeout_ms: 6000
   auto_offset_reset: "earliest"     # earliest, latest, none
@@ -36,11 +36,11 @@ kafka_consumer:
   fetch_min_bytes: 1
   fetch_max_wait_ms: 500
   topics:
-    - market_depth_input
+    - ORDERBOOK
 
 # Market Depth Processor configuration
 processor:
-  input_topic: "market_depth_input"
+  input_topic: "ORDERBOOK"
   poll_timeout_ms: 100
   max_threads: 4
   flush_interval_ms: 1000          # How often to flush Kafka producer
@@ -53,8 +53,8 @@ processor:
 # Order book depth configuration
 depth_config:
   levels: [5, 10, 25, 50]         # Depth levels to publish
-  enable_cdc: true                 # Enable Change Data Capture events
-  enable_snapshots: true           # Enable snapshot publishing
+  enable_cdc: false                 # Enable Change Data Capture events
+  enable_snapshots: false           # Enable snapshot publishing
   max_price_levels: 100           # Maximum price levels to track per side
 
 # JSON output formatting configuration
@@ -64,7 +64,7 @@ json_config:
   include_timestamp: true         # Include timestamp in messages
   include_sequence: true          # Include sequence numbers
   compact_format: false           # Use compact JSON (no pretty printing)
-  exchange_name: "CBOE"          # Default exchange name
+  exchange_name: "CXA"          # Default exchange name
 
 # Kafka topic routing configuration
 topic_config:
@@ -72,7 +72,7 @@ topic_config:
   cdc_topic: "market_depth_cdc"             # Topic for CDC events
   use_depth_in_topic: true                  # Include depth in topic name
   use_symbol_partitioning: true             # Use symbol-based partitioning
-  num_partitions: 16                        # Number of partitions for consistent hashing
+  num_partitions: 8                        # Number of partitions for consistent hashing
 
 # Performance monitoring and alerting
 monitoring:
@@ -173,44 +173,3 @@ localization:
   timezone: "UTC"
   date_format: "ISO8601"
   number_format: "US"            # US, EU, etc.
-
-# Environment-specific overrides
-# These can be overridden by environment variables or separate config files
-environments:
-  development:
-    kafka_cluster:
-      bootstrap_servers: "localhost:9092"
-    global:
-      log_level: debug
-    development:
-      enable_debug_logging: true
-      log_message_payloads: true
-
-  testing:
-    kafka_cluster:
-      bootstrap_servers: "kafka-test:9092"
-    processor:
-      stats_interval_s: 5
-    development:
-      enable_profiling: true
-
-  staging:
-    kafka_cluster:
-      bootstrap_servers: "kafka-staging:9092"
-    global:
-      log_level: info
-    monitoring:
-      enable_metrics: true
-
-  production:
-    kafka_cluster:
-      bootstrap_servers: "kafka-prod-1:9092,kafka-prod-2:9092,kafka-prod-3:9092"
-    global:
-      log_level: warn
-    performance:
-      cpu_affinity: [2, 3, 4, 5]  # Bind to specific CPU cores
-      thread_priority: -5          # Higher priority for production
-    reliability:
-      enable_circuit_breaker: true
-    security:
-      enable_ssl: true

@@ -28,7 +28,7 @@ CDCEvent::CDCEvent()
     : side(OrderSide::Buy)
     , event_type(CDCEventType::LevelAdded)
     , sequence(0)
-    , timestamp_us(0) {}
+    , timestamp(0) {}
 
 // DepthConfig implementations
 DepthConfig::DepthConfig()
@@ -40,7 +40,7 @@ DepthConfig::DepthConfig()
 // InternalOrderBookSnapshot implementations
 InternalOrderBookSnapshot::InternalOrderBookSnapshot()
     : sequence(0)
-    , timestamp_us(0)
+    , timestamp(0)
     , last_trade_price(0)
     , last_trade_quantity(0) {}
 

@@ -28,17 +28,20 @@
 #include <chrono>
 #include <memory>
 
-namespace md {
+namespace market_depth {
+
+// Forward declare FlatBuffers types
+namespace fb = ::md;
 
 /**
  * @brief Configuration for the market depth processor
  */
 struct ProcessorConfig {
     // Kafka configuration
-    std::string kafka_config_path = "config/config.yaml";
-    std::string input_topic = "market_depth_input";
-    int consumer_poll_timeout_ms = 100;
-    int max_processing_threads = 4;
+    std::string kafka_config_path;
+    std::string input_topic;
+    int consumer_poll_timeout_ms;
+    int max_processing_threads;
 
     // Order book configuration
     DepthConfig depth_config;
@@ -50,15 +53,17 @@ struct ProcessorConfig {
     MessageRouter::TopicConfig topic_config;
 
     // Processing configuration
-    uint32_t max_messages_per_batch = 1000;
-    uint32_t flush_interval_ms = 1000;
-    bool enable_statistics = true;
-    uint32_t stats_report_interval_s = 30;
+    uint32_t max_messages_per_batch;
+    uint32_t flush_interval_ms;
+    bool enable_statistics;
+    uint32_t stats_report_interval_s;
 
     // Performance tuning
-    bool use_symbol_threading = true;   // Process different symbols in parallel
-    uint32_t message_queue_size = 10000;
-    bool enable_back_pressure = true;
+    bool use_symbol_threading;
+    uint32_t message_queue_size;
+    bool enable_back_pressure;
+
+    ProcessorConfig();
 };
 
 /**
@@ -165,7 +170,7 @@ private:
     /**
      * @brief Publish snapshot messages for all depth levels
      */
-    void publish_snapshots(const OrderBookSnapshot& snapshot);
+    void publish_snapshots(const InternalOrderBookSnapshot &snapshot);
 
     /**
      * @brief Publish CDC event message
@@ -180,7 +185,7 @@ private:
     /**
      * @brief Get current timestamp in microseconds
      */
-    static uint64_t get_timestamp_us() {
+    static uint64_t get_timestamp() {
         return std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::high_resolution_clock::now().time_since_epoch()).count();
     }

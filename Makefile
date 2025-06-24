@@ -1,4 +1,6 @@
-CXX = g++
+# Object file compilation
+$(OBJDIR)/%.o: $(SRCDIR)/%.cpp | $(OBJDIR) $(FLATBUF_GENERATED) $(FLATBUF_FORMATTER)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c -o $@ $CXX = g++
 CXXFLAGS = -std=c++17 -Wall -O2 -pthread -DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE
 
 # Detect OS (Darwin = macOS)
@@ -44,12 +46,20 @@ OBJS = $(patsubst %.cpp,$(OBJDIR)/%.o,$(SOURCES))
 # FlatBuffers schema file
 FLATBUF_SCHEMA = $(FLATBUFDIR)/orderbook.fbs
 FLATBUF_GENERATED = ./include/orderbook_generated.h
+FLATBUF_FORMATTER = ./include/FlatBuffersFormatter.hpp
 
 all: $(BINDIR)/$(TARGET)
 
 # Generate FlatBuffers headers if schema exists
 $(FLATBUF_GENERATED): $(FLATBUF_SCHEMA)
 	flatc --cpp -o ./include $(FLATBUF_SCHEMA)
+
+# Create FlatBuffers formatter header
+$(FLATBUF_FORMATTER): $(FLATBUF_GENERATED)
+	@if [ ! -f $(FLATBUF_FORMATTER) ]; then \
+		echo "Creating FlatBuffers formatter..."; \
+		echo "Please create $(FLATBUF_FORMATTER) with custom formatters for your FlatBuffers types"; \
+	fi
 
 # Main target
 $(BINDIR)/$(TARGET): $(OBJS) | $(BINDIR)
@@ -70,26 +80,26 @@ $(BINDIR):
 $(OBJDIR)/main.o: $(SRCDIR)/main.cpp \
                   ./include/MarketDepthProcessor.hpp \
                   ./include/KafkaConsumer.hpp \
-                  ./include/KafkaProducer.hpp
+                  ./include/KafkaProducer.hpp \
 
 $(OBJDIR)/MarketDepthProcessor.o: $(SRCDIR)/MarketDepthProcessor.cpp \
                                   ./include/MarketDepthProcessor.hpp \
                                   ./include/OrderBook.hpp \
                                   ./include/MessageFactory.hpp \
-                                  ./include/orderbook_generated.h
+                                  ./include/orderbook_generated.h \
 
 $(OBJDIR)/KafkaConsumer.o: $(SRCDIR)/KafkaConsumer.cpp \
                            ./include/KafkaConsumer.hpp \
-                           ./include/MessageFactory.hpp
+                           ./include/MessageFactory.hpp \
 
 $(OBJDIR)/KafkaProducer.o: $(SRCDIR)/KafkaProducer.cpp \
                            ./include/KafkaProducer.hpp \
-                           ./include/orderbook_generated.h
+                           ./include/orderbook_generated.h \
 
 $(OBJDIR)/MessageFactory.o: $(SRCDIR)/MessageFactory.cpp \
                             ./include/MessageFactory.hpp \
                             ./include/OrderBookTypes.hpp \
-                            ./include/orderbook_generated.h
+                            ./include/orderbook_generated.h \
 
 $(OBJDIR)/OrderBook.o: $(SRCDIR)/OrderBook.cpp \
                        ./include/OrderBook.hpp \

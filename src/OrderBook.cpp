@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <shared_mutex>
 
-namespace md {
+namespace market_depth {
 
 OrderBook::OrderBook(const std::string& symbol,
                     const DepthConfig& config,
@@ -25,7 +25,7 @@ OrderBook::OrderBook(const std::string& symbol,
     SPDLOG_DEBUG("OrderBook created for symbol: {}", symbol_);
 }
 
-bool OrderBook::process_snapshot(const ::md::OrderBookSnapshot* snapshot) {
+bool OrderBook::process_snapshot(const fb::OrderBookSnapshot* snapshot) {
     if (!snapshot) {
         SPDLOG_ERROR("Null snapshot received for symbol: {}", symbol_);
         return false;
@@ -45,7 +45,7 @@ bool OrderBook::process_snapshot(const ::md::OrderBookSnapshot* snapshot) {
 
     // Update sequence and timestamp
     current_snapshot_.sequence = snapshot->seq();
-    current_snapshot_.timestamp_us = get_timestamp_us();
+    current_snapshot_.timestamp = get_timestamp();
 
     // Update trade info
     current_snapshot_.last_trade_price = snapshot->recent_trade_price();
@@ -86,7 +86,7 @@ bool OrderBook::process_snapshot(const ::md::OrderBookSnapshot* snapshot) {
 }
 
 void OrderBook::process_price_levels(
-    const ::flatbuffers::Vector<::flatbuffers::Offset<::md::OrderMsgLevel>>* levels,
+    const ::flatbuffers::Vector<::flatbuffers::Offset<fb::OrderMsgLevel>>* levels,
     OrderSide side,
     uint64_t sequence) {
 
@@ -138,10 +138,8 @@ void OrderBook::generate_cdc_events(
     for (const auto& [price, new_level] : new_levels) {
         auto old_it = old_levels.find(price);
         if (old_it == old_levels.end()) {
-            // New level added
             emit_cdc_event(CDCEventType::LevelAdded, side, new_level, sequence);
         } else if (old_it->second != new_level) {
-            // Level modified
             emit_cdc_event(CDCEventType::LevelModified, side, new_level, sequence);
         }
     }
@@ -164,10 +162,8 @@ void OrderBook::generate_cdc_events(
     for (const auto& [price, new_level] : new_levels) {
         auto old_it = old_levels.find(price);
         if (old_it == old_levels.end()) {
-            // New level added
             emit_cdc_event(CDCEventType::LevelAdded, side, new_level, sequence);
         } else if (old_it->second != new_level) {
-            // Level modified
             emit_cdc_event(CDCEventType::LevelModified, side, new_level, sequence);
         }
     }
@@ -183,9 +179,14 @@ void OrderBook::emit_cdc_event(CDCEventType type, OrderSide side,
     event.event_type = type;
     event.level = level;
     event.sequence = sequence;
-    event.timestamp_us = get_timestamp_us();
+    event.timestamp = get_timestamp();
 
     cdc_callback_(event);
+}
+
+uint64_t OrderBook::get_timestamp() {
+    return std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::high_resolution_clock::now().time_since_epoch()).count();
 }
 
 // OrderBookManager Implementation
@@ -195,16 +196,7 @@ OrderBookManager::OrderBookManager(const DepthConfig& config,
     : config_(config)
     , global_cdc_callback_(global_cdc_callback) {
 
-    SPDLOG_INFO("OrderBookManager created with max_levels={}, depth_levels=[{}]",
-               config_.max_price_levels,
-               [&]() {
-                   std::string levels;
-                   for (size_t i = 0; i < config_.depth_levels.size(); ++i) {
-                       if (i > 0) levels += ",";
-                       levels += std::to_string(config_.depth_levels[i]);
-                   }
-                   return levels;
-               }());
+    SPDLOG_INFO("OrderBookManager created with max_levels={}", config_.max_price_levels);
 }
 
 OrderBook* OrderBookManager::get_or_create_orderbook(const std::string& symbol) {
@@ -235,7 +227,7 @@ OrderBook* OrderBookManager::get_or_create_orderbook(const std::string& symbol) 
     return ptr;
 }
 
-bool OrderBookManager::process_snapshot(const ::md::OrderBookSnapshot* snapshot) {
+bool OrderBookManager::process_snapshot(const fb::OrderBookSnapshot* snapshot) {
     if (!snapshot || !snapshot->symbol()) {
         SPDLOG_ERROR("Invalid snapshot: null or missing symbol");
         return false;
@@ -281,4 +273,4 @@ ProcessingStats OrderBookManager::get_aggregate_stats() const {
     return stats_;
 }
 
-} // namespace md
+} // namespace market_depth
