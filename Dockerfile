@@ -9,6 +9,7 @@ RUN apt -o Acquire::AllowInsecureRepositories=true  update && apt install -y --n
     g++ \
     libyaml-cpp-dev \
     librdkafka-dev \
+    flatbuffers-dev \
     ca-certificates \
     curl \
     && rm -rf /var/lib/apt/lists/* \
@@ -40,6 +41,7 @@ RUN apt -o Acquire::AllowInsecureRepositories=true update && apt install -y --no
     libyaml-cpp-dev \
     librdkafka-dev \
     ca-certificates \
+    flatbuffers-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Thiết lập thư mục làm việc
