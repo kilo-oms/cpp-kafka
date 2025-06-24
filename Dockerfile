@@ -20,10 +20,11 @@ RUN apt -o Acquire::AllowInsecureRepositories=true  update && apt install -y --n
 RUN mkdir -p /usr/local/include/nlohmann \
     && curl -sSL https://raw.githubusercontent.com/nlohmann/json/v3.11.3/single_include/nlohmann/json.hpp \
     -o /usr/local/include/nlohmann/json.hpp
-RUN git clone https://github.com/google/flatbuffers.git && \
-    cd flatbuffers/ && \
-    cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release && \
-    make
+
+RUN git clone --depth 1 https://github.com/google/flatbuffers.git /tmp/flatbuffers && \
+    cd /tmp/flatbuffers && cmake -B build -G "Unix Makefiles" && cmake --build build -j && \
+    cmake --install build && \
+    rm -rf /tmp/flatbuffers
 
 # Làm việc trong thư mục ứng dụng
 WORKDIR /app
@@ -45,10 +46,13 @@ RUN apt -o Acquire::AllowInsecureRepositories=true update && apt install -y --no
     librdkafka-dev \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-RUN git clone https://github.com/google/flatbuffers.git && \
-    cd flatbuffers/ && \
-    cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release && \
-    make
+
+
+RUN git clone --depth 1 https://github.com/google/flatbuffers.git /tmp/flatbuffers && \
+    cd /tmp/flatbuffers && cmake -B build -G "Unix Makefiles" && cmake --build build -j && \
+    cmake --install build && \
+    rm -rf /tmp/flatbuffers
+
 
 # Thiết lập thư mục làm việc
 WORKDIR /app
