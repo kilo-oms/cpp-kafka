@@ -17,21 +17,27 @@ namespace md {
 
 struct FBBookDeltaEvent;
 struct FBBookDeltaEventBuilder;
+struct FBBookDeltaEventT;
 
 struct OrderMsgOrder;
 struct OrderMsgOrderBuilder;
+struct OrderMsgOrderT;
 
 struct OrderMsgLevel;
 struct OrderMsgLevelBuilder;
+struct OrderMsgLevelT;
 
 struct DeltaBatch;
 struct DeltaBatchBuilder;
+struct DeltaBatchT;
 
 struct OrderBookSnapshot;
 struct OrderBookSnapshotBuilder;
+struct OrderBookSnapshotT;
 
 struct Envelope;
 struct EnvelopeBuilder;
+struct EnvelopeT;
 
 enum Kind : int8_t {
   Kind_Add = 0,
@@ -144,10 +150,81 @@ template<> struct BookMsgTraits<md::OrderBookSnapshot> {
   static const BookMsg enum_value = BookMsg_OrderBookSnapshot;
 };
 
+template<typename T> struct BookMsgUnionTraits {
+  static const BookMsg enum_value = BookMsg_NONE;
+};
+
+template<> struct BookMsgUnionTraits<md::DeltaBatchT> {
+  static const BookMsg enum_value = BookMsg_DeltaBatch;
+};
+
+template<> struct BookMsgUnionTraits<md::OrderBookSnapshotT> {
+  static const BookMsg enum_value = BookMsg_OrderBookSnapshot;
+};
+
+struct BookMsgUnion {
+  BookMsg type;
+  void *value;
+
+  BookMsgUnion() : type(BookMsg_NONE), value(nullptr) {}
+  BookMsgUnion(BookMsgUnion&& u) FLATBUFFERS_NOEXCEPT :
+    type(BookMsg_NONE), value(nullptr)
+    { std::swap(type, u.type); std::swap(value, u.value); }
+  BookMsgUnion(const BookMsgUnion &);
+  BookMsgUnion &operator=(const BookMsgUnion &u)
+    { BookMsgUnion t(u); std::swap(type, t.type); std::swap(value, t.value); return *this; }
+  BookMsgUnion &operator=(BookMsgUnion &&u) FLATBUFFERS_NOEXCEPT
+    { std::swap(type, u.type); std::swap(value, u.value); return *this; }
+  ~BookMsgUnion() { Reset(); }
+
+  void Reset();
+
+  template <typename T>
+  void Set(T&& val) {
+    typedef typename std::remove_reference<T>::type RT;
+    Reset();
+    type = BookMsgUnionTraits<RT>::enum_value;
+    if (type != BookMsg_NONE) {
+      value = new RT(std::forward<T>(val));
+    }
+  }
+
+  static void *UnPack(const void *obj, BookMsg type, const ::flatbuffers::resolver_function_t *resolver);
+  ::flatbuffers::Offset<void> Pack(::flatbuffers::FlatBufferBuilder &_fbb, const ::flatbuffers::rehasher_function_t *_rehasher = nullptr) const;
+
+  md::DeltaBatchT *AsDeltaBatch() {
+    return type == BookMsg_DeltaBatch ?
+      reinterpret_cast<md::DeltaBatchT *>(value) : nullptr;
+  }
+  const md::DeltaBatchT *AsDeltaBatch() const {
+    return type == BookMsg_DeltaBatch ?
+      reinterpret_cast<const md::DeltaBatchT *>(value) : nullptr;
+  }
+  md::OrderBookSnapshotT *AsOrderBookSnapshot() {
+    return type == BookMsg_OrderBookSnapshot ?
+      reinterpret_cast<md::OrderBookSnapshotT *>(value) : nullptr;
+  }
+  const md::OrderBookSnapshotT *AsOrderBookSnapshot() const {
+    return type == BookMsg_OrderBookSnapshot ?
+      reinterpret_cast<const md::OrderBookSnapshotT *>(value) : nullptr;
+  }
+};
+
 bool VerifyBookMsg(::flatbuffers::Verifier &verifier, const void *obj, BookMsg type);
 bool VerifyBookMsgVector(::flatbuffers::Verifier &verifier, const ::flatbuffers::Vector<::flatbuffers::Offset<void>> *values, const ::flatbuffers::Vector<uint8_t> *types);
 
+struct FBBookDeltaEventT : public ::flatbuffers::NativeTable {
+  typedef FBBookDeltaEvent TableType;
+  md::Kind kind = md::Kind_Add;
+  uint64_t order_id = 0;
+  uint64_t price = 0;
+  uint32_t qty = 0;
+  md::Side side = md::Side_Buy;
+  uint64_t seq = 0;
+};
+
 struct FBBookDeltaEvent FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef FBBookDeltaEventT NativeTableType;
   typedef FBBookDeltaEventBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_KIND = 4,
@@ -185,6 +262,9 @@ struct FBBookDeltaEvent FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
            VerifyField<uint64_t>(verifier, VT_SEQ, 8) &&
            verifier.EndTable();
   }
+  FBBookDeltaEventT *UnPack(const ::flatbuffers::resolver_function_t *_resolver = nullptr) const;
+  void UnPackTo(FBBookDeltaEventT *_o, const ::flatbuffers::resolver_function_t *_resolver = nullptr) const;
+  static ::flatbuffers::Offset<FBBookDeltaEvent> Pack(::flatbuffers::FlatBufferBuilder &_fbb, const FBBookDeltaEventT* _o, const ::flatbuffers::rehasher_function_t *_rehasher = nullptr);
 };
 
 struct FBBookDeltaEventBuilder {
@@ -238,7 +318,17 @@ inline ::flatbuffers::Offset<FBBookDeltaEvent> CreateFBBookDeltaEvent(
   return builder_.Finish();
 }
 
+::flatbuffers::Offset<FBBookDeltaEvent> CreateFBBookDeltaEvent(::flatbuffers::FlatBufferBuilder &_fbb, const FBBookDeltaEventT *_o, const ::flatbuffers::rehasher_function_t *_rehasher = nullptr);
+
+struct OrderMsgOrderT : public ::flatbuffers::NativeTable {
+  typedef OrderMsgOrder TableType;
+  uint64_t id = 0;
+  uint32_t qty = 0;
+  md::Side side = md::Side_Buy;
+};
+
 struct OrderMsgOrder FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef OrderMsgOrderT NativeTableType;
   typedef OrderMsgOrderBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_ID = 4,
@@ -261,6 +351,9 @@ struct OrderMsgOrder FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
            VerifyField<int8_t>(verifier, VT_SIDE, 1) &&
            verifier.EndTable();
   }
+  OrderMsgOrderT *UnPack(const ::flatbuffers::resolver_function_t *_resolver = nullptr) const;
+  void UnPackTo(OrderMsgOrderT *_o, const ::flatbuffers::resolver_function_t *_resolver = nullptr) const;
+  static ::flatbuffers::Offset<OrderMsgOrder> Pack(::flatbuffers::FlatBufferBuilder &_fbb, const OrderMsgOrderT* _o, const ::flatbuffers::rehasher_function_t *_rehasher = nullptr);
 };
 
 struct OrderMsgOrderBuilder {
@@ -299,7 +392,20 @@ inline ::flatbuffers::Offset<OrderMsgOrder> CreateOrderMsgOrder(
   return builder_.Finish();
 }
 
+::flatbuffers::Offset<OrderMsgOrder> CreateOrderMsgOrder(::flatbuffers::FlatBufferBuilder &_fbb, const OrderMsgOrderT *_o, const ::flatbuffers::rehasher_function_t *_rehasher = nullptr);
+
+struct OrderMsgLevelT : public ::flatbuffers::NativeTable {
+  typedef OrderMsgLevel TableType;
+  uint64_t price = 0;
+  std::vector<std::unique_ptr<md::OrderMsgOrderT>> orders{};
+  OrderMsgLevelT() = default;
+  OrderMsgLevelT(const OrderMsgLevelT &o);
+  OrderMsgLevelT(OrderMsgLevelT&&) FLATBUFFERS_NOEXCEPT = default;
+  OrderMsgLevelT &operator=(OrderMsgLevelT o) FLATBUFFERS_NOEXCEPT;
+};
+
 struct OrderMsgLevel FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef OrderMsgLevelT NativeTableType;
   typedef OrderMsgLevelBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_PRICE = 4,
@@ -319,6 +425,9 @@ struct OrderMsgLevel FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
            verifier.VerifyVectorOfTables(orders()) &&
            verifier.EndTable();
   }
+  OrderMsgLevelT *UnPack(const ::flatbuffers::resolver_function_t *_resolver = nullptr) const;
+  void UnPackTo(OrderMsgLevelT *_o, const ::flatbuffers::resolver_function_t *_resolver = nullptr) const;
+  static ::flatbuffers::Offset<OrderMsgLevel> Pack(::flatbuffers::FlatBufferBuilder &_fbb, const OrderMsgLevelT* _o, const ::flatbuffers::rehasher_function_t *_rehasher = nullptr);
 };
 
 struct OrderMsgLevelBuilder {
@@ -363,7 +472,22 @@ inline ::flatbuffers::Offset<OrderMsgLevel> CreateOrderMsgLevelDirect(
       orders__);
 }
 
+::flatbuffers::Offset<OrderMsgLevel> CreateOrderMsgLevel(::flatbuffers::FlatBufferBuilder &_fbb, const OrderMsgLevelT *_o, const ::flatbuffers::rehasher_function_t *_rehasher = nullptr);
+
+struct DeltaBatchT : public ::flatbuffers::NativeTable {
+  typedef DeltaBatch TableType;
+  std::string symbol{};
+  uint64_t seq_start = 0;
+  uint64_t seq_end = 0;
+  std::vector<std::unique_ptr<md::FBBookDeltaEventT>> events{};
+  DeltaBatchT() = default;
+  DeltaBatchT(const DeltaBatchT &o);
+  DeltaBatchT(DeltaBatchT&&) FLATBUFFERS_NOEXCEPT = default;
+  DeltaBatchT &operator=(DeltaBatchT o) FLATBUFFERS_NOEXCEPT;
+};
+
 struct DeltaBatch FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef DeltaBatchT NativeTableType;
   typedef DeltaBatchBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_SYMBOL = 4,
@@ -394,6 +518,9 @@ struct DeltaBatch FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
            verifier.VerifyVectorOfTables(events()) &&
            verifier.EndTable();
   }
+  DeltaBatchT *UnPack(const ::flatbuffers::resolver_function_t *_resolver = nullptr) const;
+  void UnPackTo(DeltaBatchT *_o, const ::flatbuffers::resolver_function_t *_resolver = nullptr) const;
+  static ::flatbuffers::Offset<DeltaBatch> Pack(::flatbuffers::FlatBufferBuilder &_fbb, const DeltaBatchT* _o, const ::flatbuffers::rehasher_function_t *_rehasher = nullptr);
 };
 
 struct DeltaBatchBuilder {
@@ -453,7 +580,24 @@ inline ::flatbuffers::Offset<DeltaBatch> CreateDeltaBatchDirect(
       events__);
 }
 
+::flatbuffers::Offset<DeltaBatch> CreateDeltaBatch(::flatbuffers::FlatBufferBuilder &_fbb, const DeltaBatchT *_o, const ::flatbuffers::rehasher_function_t *_rehasher = nullptr);
+
+struct OrderBookSnapshotT : public ::flatbuffers::NativeTable {
+  typedef OrderBookSnapshot TableType;
+  std::string symbol{};
+  uint64_t seq = 0;
+  std::vector<std::unique_ptr<md::OrderMsgLevelT>> buy_side{};
+  std::vector<std::unique_ptr<md::OrderMsgLevelT>> sell_side{};
+  uint64_t recent_trade_price = 0;
+  uint32_t recent_trade_qty = 0;
+  OrderBookSnapshotT() = default;
+  OrderBookSnapshotT(const OrderBookSnapshotT &o);
+  OrderBookSnapshotT(OrderBookSnapshotT&&) FLATBUFFERS_NOEXCEPT = default;
+  OrderBookSnapshotT &operator=(OrderBookSnapshotT o) FLATBUFFERS_NOEXCEPT;
+};
+
 struct OrderBookSnapshot FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef OrderBookSnapshotT NativeTableType;
   typedef OrderBookSnapshotBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_SYMBOL = 4,
@@ -496,6 +640,9 @@ struct OrderBookSnapshot FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table 
            VerifyField<uint32_t>(verifier, VT_RECENT_TRADE_QTY, 4) &&
            verifier.EndTable();
   }
+  OrderBookSnapshotT *UnPack(const ::flatbuffers::resolver_function_t *_resolver = nullptr) const;
+  void UnPackTo(OrderBookSnapshotT *_o, const ::flatbuffers::resolver_function_t *_resolver = nullptr) const;
+  static ::flatbuffers::Offset<OrderBookSnapshot> Pack(::flatbuffers::FlatBufferBuilder &_fbb, const OrderBookSnapshotT* _o, const ::flatbuffers::rehasher_function_t *_rehasher = nullptr);
 };
 
 struct OrderBookSnapshotBuilder {
@@ -570,7 +717,15 @@ inline ::flatbuffers::Offset<OrderBookSnapshot> CreateOrderBookSnapshotDirect(
       recent_trade_qty);
 }
 
+::flatbuffers::Offset<OrderBookSnapshot> CreateOrderBookSnapshot(::flatbuffers::FlatBufferBuilder &_fbb, const OrderBookSnapshotT *_o, const ::flatbuffers::rehasher_function_t *_rehasher = nullptr);
+
+struct EnvelopeT : public ::flatbuffers::NativeTable {
+  typedef Envelope TableType;
+  md::BookMsgUnion msg{};
+};
+
 struct Envelope FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef EnvelopeT NativeTableType;
   typedef EnvelopeBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_MSG_TYPE = 4,
@@ -596,6 +751,9 @@ struct Envelope FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
            VerifyBookMsg(verifier, msg(), msg_type()) &&
            verifier.EndTable();
   }
+  EnvelopeT *UnPack(const ::flatbuffers::resolver_function_t *_resolver = nullptr) const;
+  void UnPackTo(EnvelopeT *_o, const ::flatbuffers::resolver_function_t *_resolver = nullptr) const;
+  static ::flatbuffers::Offset<Envelope> Pack(::flatbuffers::FlatBufferBuilder &_fbb, const EnvelopeT* _o, const ::flatbuffers::rehasher_function_t *_rehasher = nullptr);
 };
 
 template<> inline const md::DeltaBatch *Envelope::msg_as<md::DeltaBatch>() const {
@@ -637,6 +795,264 @@ inline ::flatbuffers::Offset<Envelope> CreateEnvelope(
   return builder_.Finish();
 }
 
+::flatbuffers::Offset<Envelope> CreateEnvelope(::flatbuffers::FlatBufferBuilder &_fbb, const EnvelopeT *_o, const ::flatbuffers::rehasher_function_t *_rehasher = nullptr);
+
+inline FBBookDeltaEventT *FBBookDeltaEvent::UnPack(const ::flatbuffers::resolver_function_t *_resolver) const {
+  auto _o = std::unique_ptr<FBBookDeltaEventT>(new FBBookDeltaEventT());
+  UnPackTo(_o.get(), _resolver);
+  return _o.release();
+}
+
+inline void FBBookDeltaEvent::UnPackTo(FBBookDeltaEventT *_o, const ::flatbuffers::resolver_function_t *_resolver) const {
+  (void)_o;
+  (void)_resolver;
+  { auto _e = kind(); _o->kind = _e; }
+  { auto _e = order_id(); _o->order_id = _e; }
+  { auto _e = price(); _o->price = _e; }
+  { auto _e = qty(); _o->qty = _e; }
+  { auto _e = side(); _o->side = _e; }
+  { auto _e = seq(); _o->seq = _e; }
+}
+
+inline ::flatbuffers::Offset<FBBookDeltaEvent> FBBookDeltaEvent::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const FBBookDeltaEventT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  return CreateFBBookDeltaEvent(_fbb, _o, _rehasher);
+}
+
+inline ::flatbuffers::Offset<FBBookDeltaEvent> CreateFBBookDeltaEvent(::flatbuffers::FlatBufferBuilder &_fbb, const FBBookDeltaEventT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  (void)_rehasher;
+  (void)_o;
+  struct _VectorArgs { ::flatbuffers::FlatBufferBuilder *__fbb; const FBBookDeltaEventT* __o; const ::flatbuffers::rehasher_function_t *__rehasher; } _va = { &_fbb, _o, _rehasher}; (void)_va;
+  auto _kind = _o->kind;
+  auto _order_id = _o->order_id;
+  auto _price = _o->price;
+  auto _qty = _o->qty;
+  auto _side = _o->side;
+  auto _seq = _o->seq;
+  return md::CreateFBBookDeltaEvent(
+      _fbb,
+      _kind,
+      _order_id,
+      _price,
+      _qty,
+      _side,
+      _seq);
+}
+
+inline OrderMsgOrderT *OrderMsgOrder::UnPack(const ::flatbuffers::resolver_function_t *_resolver) const {
+  auto _o = std::unique_ptr<OrderMsgOrderT>(new OrderMsgOrderT());
+  UnPackTo(_o.get(), _resolver);
+  return _o.release();
+}
+
+inline void OrderMsgOrder::UnPackTo(OrderMsgOrderT *_o, const ::flatbuffers::resolver_function_t *_resolver) const {
+  (void)_o;
+  (void)_resolver;
+  { auto _e = id(); _o->id = _e; }
+  { auto _e = qty(); _o->qty = _e; }
+  { auto _e = side(); _o->side = _e; }
+}
+
+inline ::flatbuffers::Offset<OrderMsgOrder> OrderMsgOrder::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const OrderMsgOrderT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  return CreateOrderMsgOrder(_fbb, _o, _rehasher);
+}
+
+inline ::flatbuffers::Offset<OrderMsgOrder> CreateOrderMsgOrder(::flatbuffers::FlatBufferBuilder &_fbb, const OrderMsgOrderT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  (void)_rehasher;
+  (void)_o;
+  struct _VectorArgs { ::flatbuffers::FlatBufferBuilder *__fbb; const OrderMsgOrderT* __o; const ::flatbuffers::rehasher_function_t *__rehasher; } _va = { &_fbb, _o, _rehasher}; (void)_va;
+  auto _id = _o->id;
+  auto _qty = _o->qty;
+  auto _side = _o->side;
+  return md::CreateOrderMsgOrder(
+      _fbb,
+      _id,
+      _qty,
+      _side);
+}
+
+inline OrderMsgLevelT::OrderMsgLevelT(const OrderMsgLevelT &o)
+      : price(o.price) {
+  orders.reserve(o.orders.size());
+  for (const auto &orders_ : o.orders) { orders.emplace_back((orders_) ? new md::OrderMsgOrderT(*orders_) : nullptr); }
+}
+
+inline OrderMsgLevelT &OrderMsgLevelT::operator=(OrderMsgLevelT o) FLATBUFFERS_NOEXCEPT {
+  std::swap(price, o.price);
+  std::swap(orders, o.orders);
+  return *this;
+}
+
+inline OrderMsgLevelT *OrderMsgLevel::UnPack(const ::flatbuffers::resolver_function_t *_resolver) const {
+  auto _o = std::unique_ptr<OrderMsgLevelT>(new OrderMsgLevelT());
+  UnPackTo(_o.get(), _resolver);
+  return _o.release();
+}
+
+inline void OrderMsgLevel::UnPackTo(OrderMsgLevelT *_o, const ::flatbuffers::resolver_function_t *_resolver) const {
+  (void)_o;
+  (void)_resolver;
+  { auto _e = price(); _o->price = _e; }
+  { auto _e = orders(); if (_e) { _o->orders.resize(_e->size()); for (::flatbuffers::uoffset_t _i = 0; _i < _e->size(); _i++) { if(_o->orders[_i]) { _e->Get(_i)->UnPackTo(_o->orders[_i].get(), _resolver); } else { _o->orders[_i] = std::unique_ptr<md::OrderMsgOrderT>(_e->Get(_i)->UnPack(_resolver)); } } } else { _o->orders.resize(0); } }
+}
+
+inline ::flatbuffers::Offset<OrderMsgLevel> OrderMsgLevel::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const OrderMsgLevelT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  return CreateOrderMsgLevel(_fbb, _o, _rehasher);
+}
+
+inline ::flatbuffers::Offset<OrderMsgLevel> CreateOrderMsgLevel(::flatbuffers::FlatBufferBuilder &_fbb, const OrderMsgLevelT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  (void)_rehasher;
+  (void)_o;
+  struct _VectorArgs { ::flatbuffers::FlatBufferBuilder *__fbb; const OrderMsgLevelT* __o; const ::flatbuffers::rehasher_function_t *__rehasher; } _va = { &_fbb, _o, _rehasher}; (void)_va;
+  auto _price = _o->price;
+  auto _orders = _o->orders.size() ? _fbb.CreateVector<::flatbuffers::Offset<md::OrderMsgOrder>> (_o->orders.size(), [](size_t i, _VectorArgs *__va) { return CreateOrderMsgOrder(*__va->__fbb, __va->__o->orders[i].get(), __va->__rehasher); }, &_va ) : 0;
+  return md::CreateOrderMsgLevel(
+      _fbb,
+      _price,
+      _orders);
+}
+
+inline DeltaBatchT::DeltaBatchT(const DeltaBatchT &o)
+      : symbol(o.symbol),
+        seq_start(o.seq_start),
+        seq_end(o.seq_end) {
+  events.reserve(o.events.size());
+  for (const auto &events_ : o.events) { events.emplace_back((events_) ? new md::FBBookDeltaEventT(*events_) : nullptr); }
+}
+
+inline DeltaBatchT &DeltaBatchT::operator=(DeltaBatchT o) FLATBUFFERS_NOEXCEPT {
+  std::swap(symbol, o.symbol);
+  std::swap(seq_start, o.seq_start);
+  std::swap(seq_end, o.seq_end);
+  std::swap(events, o.events);
+  return *this;
+}
+
+inline DeltaBatchT *DeltaBatch::UnPack(const ::flatbuffers::resolver_function_t *_resolver) const {
+  auto _o = std::unique_ptr<DeltaBatchT>(new DeltaBatchT());
+  UnPackTo(_o.get(), _resolver);
+  return _o.release();
+}
+
+inline void DeltaBatch::UnPackTo(DeltaBatchT *_o, const ::flatbuffers::resolver_function_t *_resolver) const {
+  (void)_o;
+  (void)_resolver;
+  { auto _e = symbol(); if (_e) _o->symbol = _e->str(); }
+  { auto _e = seq_start(); _o->seq_start = _e; }
+  { auto _e = seq_end(); _o->seq_end = _e; }
+  { auto _e = events(); if (_e) { _o->events.resize(_e->size()); for (::flatbuffers::uoffset_t _i = 0; _i < _e->size(); _i++) { if(_o->events[_i]) { _e->Get(_i)->UnPackTo(_o->events[_i].get(), _resolver); } else { _o->events[_i] = std::unique_ptr<md::FBBookDeltaEventT>(_e->Get(_i)->UnPack(_resolver)); } } } else { _o->events.resize(0); } }
+}
+
+inline ::flatbuffers::Offset<DeltaBatch> DeltaBatch::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const DeltaBatchT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  return CreateDeltaBatch(_fbb, _o, _rehasher);
+}
+
+inline ::flatbuffers::Offset<DeltaBatch> CreateDeltaBatch(::flatbuffers::FlatBufferBuilder &_fbb, const DeltaBatchT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  (void)_rehasher;
+  (void)_o;
+  struct _VectorArgs { ::flatbuffers::FlatBufferBuilder *__fbb; const DeltaBatchT* __o; const ::flatbuffers::rehasher_function_t *__rehasher; } _va = { &_fbb, _o, _rehasher}; (void)_va;
+  auto _symbol = _o->symbol.empty() ? 0 : _fbb.CreateString(_o->symbol);
+  auto _seq_start = _o->seq_start;
+  auto _seq_end = _o->seq_end;
+  auto _events = _o->events.size() ? _fbb.CreateVector<::flatbuffers::Offset<md::FBBookDeltaEvent>> (_o->events.size(), [](size_t i, _VectorArgs *__va) { return CreateFBBookDeltaEvent(*__va->__fbb, __va->__o->events[i].get(), __va->__rehasher); }, &_va ) : 0;
+  return md::CreateDeltaBatch(
+      _fbb,
+      _symbol,
+      _seq_start,
+      _seq_end,
+      _events);
+}
+
+inline OrderBookSnapshotT::OrderBookSnapshotT(const OrderBookSnapshotT &o)
+      : symbol(o.symbol),
+        seq(o.seq),
+        recent_trade_price(o.recent_trade_price),
+        recent_trade_qty(o.recent_trade_qty) {
+  buy_side.reserve(o.buy_side.size());
+  for (const auto &buy_side_ : o.buy_side) { buy_side.emplace_back((buy_side_) ? new md::OrderMsgLevelT(*buy_side_) : nullptr); }
+  sell_side.reserve(o.sell_side.size());
+  for (const auto &sell_side_ : o.sell_side) { sell_side.emplace_back((sell_side_) ? new md::OrderMsgLevelT(*sell_side_) : nullptr); }
+}
+
+inline OrderBookSnapshotT &OrderBookSnapshotT::operator=(OrderBookSnapshotT o) FLATBUFFERS_NOEXCEPT {
+  std::swap(symbol, o.symbol);
+  std::swap(seq, o.seq);
+  std::swap(buy_side, o.buy_side);
+  std::swap(sell_side, o.sell_side);
+  std::swap(recent_trade_price, o.recent_trade_price);
+  std::swap(recent_trade_qty, o.recent_trade_qty);
+  return *this;
+}
+
+inline OrderBookSnapshotT *OrderBookSnapshot::UnPack(const ::flatbuffers::resolver_function_t *_resolver) const {
+  auto _o = std::unique_ptr<OrderBookSnapshotT>(new OrderBookSnapshotT());
+  UnPackTo(_o.get(), _resolver);
+  return _o.release();
+}
+
+inline void OrderBookSnapshot::UnPackTo(OrderBookSnapshotT *_o, const ::flatbuffers::resolver_function_t *_resolver) const {
+  (void)_o;
+  (void)_resolver;
+  { auto _e = symbol(); if (_e) _o->symbol = _e->str(); }
+  { auto _e = seq(); _o->seq = _e; }
+  { auto _e = buy_side(); if (_e) { _o->buy_side.resize(_e->size()); for (::flatbuffers::uoffset_t _i = 0; _i < _e->size(); _i++) { if(_o->buy_side[_i]) { _e->Get(_i)->UnPackTo(_o->buy_side[_i].get(), _resolver); } else { _o->buy_side[_i] = std::unique_ptr<md::OrderMsgLevelT>(_e->Get(_i)->UnPack(_resolver)); } } } else { _o->buy_side.resize(0); } }
+  { auto _e = sell_side(); if (_e) { _o->sell_side.resize(_e->size()); for (::flatbuffers::uoffset_t _i = 0; _i < _e->size(); _i++) { if(_o->sell_side[_i]) { _e->Get(_i)->UnPackTo(_o->sell_side[_i].get(), _resolver); } else { _o->sell_side[_i] = std::unique_ptr<md::OrderMsgLevelT>(_e->Get(_i)->UnPack(_resolver)); } } } else { _o->sell_side.resize(0); } }
+  { auto _e = recent_trade_price(); _o->recent_trade_price = _e; }
+  { auto _e = recent_trade_qty(); _o->recent_trade_qty = _e; }
+}
+
+inline ::flatbuffers::Offset<OrderBookSnapshot> OrderBookSnapshot::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const OrderBookSnapshotT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  return CreateOrderBookSnapshot(_fbb, _o, _rehasher);
+}
+
+inline ::flatbuffers::Offset<OrderBookSnapshot> CreateOrderBookSnapshot(::flatbuffers::FlatBufferBuilder &_fbb, const OrderBookSnapshotT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  (void)_rehasher;
+  (void)_o;
+  struct _VectorArgs { ::flatbuffers::FlatBufferBuilder *__fbb; const OrderBookSnapshotT* __o; const ::flatbuffers::rehasher_function_t *__rehasher; } _va = { &_fbb, _o, _rehasher}; (void)_va;
+  auto _symbol = _o->symbol.empty() ? 0 : _fbb.CreateString(_o->symbol);
+  auto _seq = _o->seq;
+  auto _buy_side = _o->buy_side.size() ? _fbb.CreateVector<::flatbuffers::Offset<md::OrderMsgLevel>> (_o->buy_side.size(), [](size_t i, _VectorArgs *__va) { return CreateOrderMsgLevel(*__va->__fbb, __va->__o->buy_side[i].get(), __va->__rehasher); }, &_va ) : 0;
+  auto _sell_side = _o->sell_side.size() ? _fbb.CreateVector<::flatbuffers::Offset<md::OrderMsgLevel>> (_o->sell_side.size(), [](size_t i, _VectorArgs *__va) { return CreateOrderMsgLevel(*__va->__fbb, __va->__o->sell_side[i].get(), __va->__rehasher); }, &_va ) : 0;
+  auto _recent_trade_price = _o->recent_trade_price;
+  auto _recent_trade_qty = _o->recent_trade_qty;
+  return md::CreateOrderBookSnapshot(
+      _fbb,
+      _symbol,
+      _seq,
+      _buy_side,
+      _sell_side,
+      _recent_trade_price,
+      _recent_trade_qty);
+}
+
+inline EnvelopeT *Envelope::UnPack(const ::flatbuffers::resolver_function_t *_resolver) const {
+  auto _o = std::unique_ptr<EnvelopeT>(new EnvelopeT());
+  UnPackTo(_o.get(), _resolver);
+  return _o.release();
+}
+
+inline void Envelope::UnPackTo(EnvelopeT *_o, const ::flatbuffers::resolver_function_t *_resolver) const {
+  (void)_o;
+  (void)_resolver;
+  { auto _e = msg_type(); _o->msg.type = _e; }
+  { auto _e = msg(); if (_e) _o->msg.value = md::BookMsgUnion::UnPack(_e, msg_type(), _resolver); }
+}
+
+inline ::flatbuffers::Offset<Envelope> Envelope::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const EnvelopeT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  return CreateEnvelope(_fbb, _o, _rehasher);
+}
+
+inline ::flatbuffers::Offset<Envelope> CreateEnvelope(::flatbuffers::FlatBufferBuilder &_fbb, const EnvelopeT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  (void)_rehasher;
+  (void)_o;
+  struct _VectorArgs { ::flatbuffers::FlatBufferBuilder *__fbb; const EnvelopeT* __o; const ::flatbuffers::rehasher_function_t *__rehasher; } _va = { &_fbb, _o, _rehasher}; (void)_va;
+  auto _msg_type = _o->msg.type;
+  auto _msg = _o->msg.Pack(_fbb);
+  return md::CreateEnvelope(
+      _fbb,
+      _msg_type,
+      _msg);
+}
+
 inline bool VerifyBookMsg(::flatbuffers::Verifier &verifier, const void *obj, BookMsg type) {
   switch (type) {
     case BookMsg_NONE: {
@@ -664,6 +1080,69 @@ inline bool VerifyBookMsgVector(::flatbuffers::Verifier &verifier, const ::flatb
     }
   }
   return true;
+}
+
+inline void *BookMsgUnion::UnPack(const void *obj, BookMsg type, const ::flatbuffers::resolver_function_t *resolver) {
+  (void)resolver;
+  switch (type) {
+    case BookMsg_DeltaBatch: {
+      auto ptr = reinterpret_cast<const md::DeltaBatch *>(obj);
+      return ptr->UnPack(resolver);
+    }
+    case BookMsg_OrderBookSnapshot: {
+      auto ptr = reinterpret_cast<const md::OrderBookSnapshot *>(obj);
+      return ptr->UnPack(resolver);
+    }
+    default: return nullptr;
+  }
+}
+
+inline ::flatbuffers::Offset<void> BookMsgUnion::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const ::flatbuffers::rehasher_function_t *_rehasher) const {
+  (void)_rehasher;
+  switch (type) {
+    case BookMsg_DeltaBatch: {
+      auto ptr = reinterpret_cast<const md::DeltaBatchT *>(value);
+      return CreateDeltaBatch(_fbb, ptr, _rehasher).Union();
+    }
+    case BookMsg_OrderBookSnapshot: {
+      auto ptr = reinterpret_cast<const md::OrderBookSnapshotT *>(value);
+      return CreateOrderBookSnapshot(_fbb, ptr, _rehasher).Union();
+    }
+    default: return 0;
+  }
+}
+
+inline BookMsgUnion::BookMsgUnion(const BookMsgUnion &u) : type(u.type), value(nullptr) {
+  switch (type) {
+    case BookMsg_DeltaBatch: {
+      value = new md::DeltaBatchT(*reinterpret_cast<md::DeltaBatchT *>(u.value));
+      break;
+    }
+    case BookMsg_OrderBookSnapshot: {
+      value = new md::OrderBookSnapshotT(*reinterpret_cast<md::OrderBookSnapshotT *>(u.value));
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+inline void BookMsgUnion::Reset() {
+  switch (type) {
+    case BookMsg_DeltaBatch: {
+      auto ptr = reinterpret_cast<md::DeltaBatchT *>(value);
+      delete ptr;
+      break;
+    }
+    case BookMsg_OrderBookSnapshot: {
+      auto ptr = reinterpret_cast<md::OrderBookSnapshotT *>(value);
+      delete ptr;
+      break;
+    }
+    default: break;
+  }
+  value = nullptr;
+  type = BookMsg_NONE;
 }
 
 inline const md::Envelope *GetEnvelope(const void *buf) {
@@ -694,6 +1173,18 @@ inline void FinishSizePrefixedEnvelopeBuffer(
     ::flatbuffers::FlatBufferBuilder &fbb,
     ::flatbuffers::Offset<md::Envelope> root) {
   fbb.FinishSizePrefixed(root);
+}
+
+inline std::unique_ptr<md::EnvelopeT> UnPackEnvelope(
+    const void *buf,
+    const ::flatbuffers::resolver_function_t *res = nullptr) {
+  return std::unique_ptr<md::EnvelopeT>(GetEnvelope(buf)->UnPack(res));
+}
+
+inline std::unique_ptr<md::EnvelopeT> UnPackSizePrefixedEnvelope(
+    const void *buf,
+    const ::flatbuffers::resolver_function_t *res = nullptr) {
+  return std::unique_ptr<md::EnvelopeT>(GetSizePrefixedEnvelope(buf)->UnPack(res));
 }
 
 }  // namespace md

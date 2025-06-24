@@ -1,20 +1,216 @@
+# Market Depth Processor Configuration
+# Equix Technologies Pty Ltd - Production Configuration
+
+# Global application settings
 global:
-    log_level: info
-    log_path: /tmp
+  log_level: info                    # trace, debug, info, warn, error, critical, off
+  log_path: /app/logs               # Log file directory
+  application_name: "market_depth_processor"
+  version: "1.0.0"
+
+# Kafka cluster configuration for both producer and consumer
 kafka_cluster:
-  bootstrap_servers: "localhost:29092"
-  compression: "lz4"
-  acks: "1"
+  bootstrap_servers: "localhost:29092,localhost:29093,localhost:29094"
+  compression: "lz4"                # none, gzip, snappy, lz4, zstd
+  acks: "1"                        # 0, 1, all
   queue_buffering_max_messages: 1000000
   batch_num_messages: 10000
   linger_ms: 5
   topics:
-    - DEFAULT
+    - market_depth_input
+    - market_depth_snapshot_5
+    - market_depth_snapshot_10
+    - market_depth_snapshot_25
+    - market_depth_snapshot_50
+    - market_depth_cdc
+
+# Kafka consumer specific settings
 kafka_consumer:
-  bootstrap_servers: "localhost:29092"
-  group_id: "my-hft-consumer-group"
+  bootstrap_servers: "localhost:29092,localhost:29093,localhost:29094"
+  group_id: "market-depth-processor-group"
   session_timeout_ms: 6000
-  auto_offset_reset: "earliest"
+  auto_offset_reset: "earliest"     # earliest, latest, none
   enable_auto_commit: true
+  auto_commit_interval_ms: 5000
+  max_poll_records: 500
+  fetch_min_bytes: 1
+  fetch_max_wait_ms: 500
   topics:
-    - DEFAULT
+    - market_depth_input
+
+# Market Depth Processor configuration
+processor:
+  input_topic: "market_depth_input"
+  poll_timeout_ms: 100
+  max_threads: 4
+  flush_interval_ms: 1000          # How often to flush Kafka producer
+  stats_interval_s: 30             # Statistics reporting interval
+  max_messages_per_batch: 1000
+  message_queue_size: 10000
+  enable_back_pressure: true
+  use_symbol_threading: true       # Process different symbols in parallel
+
+# Order book depth configuration
+depth_config:
+  levels: [5, 10, 25, 50]         # Depth levels to publish
+  enable_cdc: true                 # Enable Change Data Capture events
+  enable_snapshots: true           # Enable snapshot publishing
+  max_price_levels: 100           # Maximum price levels to track per side
+
+# JSON output formatting configuration
+json_config:
+  price_decimals: 4               # Decimal places for price formatting
+  quantity_decimals: 2            # Decimal places for quantity formatting
+  include_timestamp: true         # Include timestamp in messages
+  include_sequence: true          # Include sequence numbers
+  compact_format: false           # Use compact JSON (no pretty printing)
+  exchange_name: "CBOE"          # Default exchange name
+
+# Kafka topic routing configuration
+topic_config:
+  snapshot_prefix: "market_depth_snapshot_"  # Prefix for snapshot topics
+  cdc_topic: "market_depth_cdc"             # Topic for CDC events
+  use_depth_in_topic: true                  # Include depth in topic name
+  use_symbol_partitioning: true             # Use symbol-based partitioning
+  num_partitions: 16                        # Number of partitions for consistent hashing
+
+# Performance monitoring and alerting
+monitoring:
+  enable_metrics: true
+  metrics_port: 8080              # Prometheus metrics endpoint
+  health_check_port: 8081         # Health check endpoint
+  enable_performance_logging: true
+  slow_processing_threshold_us: 1000  # Log if processing takes longer than 1ms
+  memory_usage_check_interval_s: 60
+
+# Production optimizations
+performance:
+  cpu_affinity: []                # CPU cores to bind to (empty = no binding)
+  thread_priority: 0              # Thread priority (-20 to 19, 0 = normal)
+  huge_pages: false               # Use huge pages for memory allocation
+  numa_policy: "default"         # NUMA memory allocation policy
+  batch_processing: true          # Enable batch processing optimizations
+  zero_copy: true                 # Enable zero-copy optimizations where possible
+
+# Failover and reliability
+reliability:
+  enable_circuit_breaker: true
+  circuit_breaker_threshold: 100   # Failures before opening circuit
+  circuit_breaker_timeout_s: 60    # Time before trying to close circuit
+  max_retry_attempts: 3
+  retry_backoff_ms: 1000
+  enable_dead_letter_queue: true
+  dead_letter_topic: "market_depth_dlq"
+
+# Development and testing settings (override in dev/test configs)
+development:
+  enable_debug_logging: false
+  log_message_payloads: false     # Log full message content (use only in dev)
+  simulate_latency_us: 0          # Artificial latency for testing
+  enable_profiling: false         # Enable performance profiling
+  memory_leak_detection: false    # Enable memory leak detection
+
+# Data validation and quality
+data_quality:
+  enable_validation: true
+  max_price_deviation_percent: 50  # Alert if price moves more than 50%
+  max_quantity_per_level: 1000000000  # Maximum quantity per price level
+  min_sequence_number: 0
+  enable_duplicate_detection: true
+  duplicate_cache_size: 10000
+
+# Security settings
+security:
+  enable_ssl: false               # Enable SSL/TLS for Kafka connections
+  ssl_ca_location: ""            # Path to CA certificate
+  ssl_certificate_location: ""    # Path to client certificate
+  ssl_key_location: ""           # Path to client private key
+  ssl_key_password: ""           # Password for private key
+  sasl_mechanism: "PLAIN"        # SASL mechanism (PLAIN, SCRAM-SHA-256, etc.)
+  sasl_username: ""              # SASL username
+  sasl_password: ""              # SASL password
+
+# Output destinations (for future extensibility)
+outputs:
+  kafka:
+    enabled: true
+  file:
+    enabled: false
+    path: "/app/data/output"
+    format: "jsonl"               # jsonl, csv, parquet
+    rotation_size_mb: 100
+  database:
+    enabled: false
+    connection_string: ""
+    table_prefix: "market_depth_"
+  redis:
+    enabled: false
+    host: "localhost"
+    port: 6379
+    db: 0
+    key_prefix: "md:"
+
+# Symbol filtering and routing
+symbol_config:
+  enable_symbol_filter: false
+  allowed_symbols: []             # Empty = allow all symbols
+  blocked_symbols: []             # Symbols to explicitly block
+  symbol_groups:                  # Group symbols for different processing
+    high_volume: []               # High-volume symbols for priority processing
+    low_latency: []               # Symbols requiring ultra-low latency
+    experimental: []              # Symbols for testing new features
+
+# Rate limiting and throttling
+rate_limiting:
+  enable_rate_limiting: false
+  max_messages_per_second: 10000
+  max_messages_per_symbol_per_second: 100
+  burst_size: 1000
+  backoff_strategy: "exponential"  # linear, exponential
+
+# Timezone and localization
+localization:
+  timezone: "UTC"
+  date_format: "ISO8601"
+  number_format: "US"            # US, EU, etc.
+
+# Environment-specific overrides
+# These can be overridden by environment variables or separate config files
+environments:
+  development:
+    kafka_cluster:
+      bootstrap_servers: "localhost:9092"
+    global:
+      log_level: debug
+    development:
+      enable_debug_logging: true
+      log_message_payloads: true
+
+  testing:
+    kafka_cluster:
+      bootstrap_servers: "kafka-test:9092"
+    processor:
+      stats_interval_s: 5
+    development:
+      enable_profiling: true
+
+  staging:
+    kafka_cluster:
+      bootstrap_servers: "kafka-staging:9092"
+    global:
+      log_level: info
+    monitoring:
+      enable_metrics: true
+
+  production:
+    kafka_cluster:
+      bootstrap_servers: "kafka-prod-1:9092,kafka-prod-2:9092,kafka-prod-3:9092"
+    global:
+      log_level: warn
+    performance:
+      cpu_affinity: [2, 3, 4, 5]  # Bind to specific CPU cores
+      thread_priority: -5          # Higher priority for production
+    reliability:
+      enable_circuit_breaker: true
+    security:
+      enable_ssl: true
