@@ -36,8 +36,7 @@ RUN cd /tmp && \
         --enable-sasl \
         --enable-lz4-ext \
         --enable-zstd \
-        --disable-debug-symbols \
-        --enable-optimize && \
+        --disable-debug-symbols && \
     make -j$(nproc) && \
     make install && \
     ldconfig && \
